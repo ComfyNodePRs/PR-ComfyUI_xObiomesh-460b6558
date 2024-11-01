@@ -1,14 +1,18 @@
 from .xO_OllamaTextGen import OllamaGenerate
 from .xO_OllamaModelSelect import OllamaModelSelector
+#from .MISC.broken_nodes.xO_StringConcat import StringConcat
 
 NODE_CLASS_MAPPINGS = {
     "OllamaTextGen": OllamaGenerate,
-    "OllamaModelSelect": OllamaModelSelector
+    "OllamaModelSelect": OllamaModelSelector,
+ #   "StringConcat": StringConcat
+    
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OllamaTextGen": "Ollama Generator xO🤖",
-    "OllamaModelSelect": "Ollama Model Selector xO🎯"
+    "OllamaModelSelect": "Ollama Model Selector xO🎯",
+ #   "StringConcat": "String Concatenator xO🔗"
 }
 
 ascii_art = """
@@ -27,7 +31,7 @@ ascii_art = """
 AY/'' `\Y8b                                 ``Y8b
 Y'      `YP                                    ~~
         
-        >> Neural Nodes by xObiomesh v.0.1 <<
+        >> Naughty Nodes by xObiomesh v.0.1 <<
 """
 print(ascii_art)
 

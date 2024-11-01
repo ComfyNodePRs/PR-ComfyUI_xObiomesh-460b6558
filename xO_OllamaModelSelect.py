@@ -52,7 +52,7 @@ class OllamaModelSelector:
     RETURN_NAMES = ("MODEL_NAME",)
     FUNCTION = "get_model"
     
-    CATEGORY = "xObiomesh/Ollama"
+    CATEGORY = "💦xObiomesh/Ollama"
     DESCRIPTION = "Select an Ollama model from installed models"
 
     # Add these class attributes
