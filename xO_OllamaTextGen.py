@@ -28,7 +28,7 @@ class OllamaGenerate:
                     "tooltip": "Ollama server URL (e.g., http://localhost:11434)"
                 }),
                 "keep_alive": (["true", "false"], {
-                    "default": "true",
+                    "default": "false",
                     "tooltip": "Keep model loaded in memory (true) or unload after each generation (false)"
                 }),
             },
