@@ -13,40 +13,40 @@ if not os.path.exists(DIR_WEB_JS):
 # Copy JS files to web extensions
 shutil.copytree(DIR_DEV_JS, DIR_WEB_JS, dirs_exist_ok=True)
 
+# Handle run counter
+from .init.counter import RunCounter
+counter = RunCounter(THIS_DIR)
+run_count = counter.increment()
+
 from .xO_OllamaTextGen import OllamaGenerate
 from .xO_OllamaModelSelect import OllamaModelSelector
 from .xO_ShowText import ShowText_xO
+from .xO_ComfyUIPortRunner import xO_ComfyUIPortRunner
+from .xO_TestScriptRunner import xO_TestScriptRunner
+from .xO_WorkflowRunner import xO_WorkflowRunner
+from .init.display import display_init_info
 
 NODE_CLASS_MAPPINGS = {
     "OllamaTextGen": OllamaGenerate,
     "OllamaModelSelect": OllamaModelSelector,
     "ShowText_xO": ShowText_xO,
+    "xO_ComfyUIPortRunner": xO_ComfyUIPortRunner,
+    "xO_TestScriptRunner": xO_TestScriptRunner,
+    "xO_WorkflowRunner": xO_WorkflowRunner,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OllamaTextGen": "Ollama Generator xO🤖",
     "OllamaModelSelect": "Ollama Model Selector xO🎯",
     "ShowText_xO": "Show Text xO📝",
+    "xO_ComfyUIPortRunner": "🚀 ComfyUI Port Runner",
+    "xO_TestScriptRunner": "🧪 Test Script Runner",
+    "xO_WorkflowRunner": "🔄 Workflow Runner",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
-ascii_art = """
-                   YAao,
-                    Y8888b,
-                  ,oA888888b,
-            ,aaad8888888888888888bo,
-         ,d888888888888888888888888888b,
-       ,888888888888888888888888888888888b,
-      d8888888888888888888888888888888888888,
-     d888888888888888888888888888888888888888b
-    d888888P'                    `Y888888888888,
-    88888P'                    Ybaaaa8888888888l
-   a8888'                      `Y8888P' `V888888
- d8888888a                                `Y8888
-AY/'' `\Y8b                                 ``Y8b
-Y'      `YP                                    ~~
-        
-        >> Neural Nodes by xObiomesh v.0.1 <<
-"""
-print(ascii_art)
+# Display initialization information
+display_init_info(run_count, 'elephant')
+
+__version__ = "0.2.1"
