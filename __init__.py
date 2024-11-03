@@ -24,6 +24,7 @@ from .xO_ShowText import ShowText_xO
 from .xO_ComfyUIPortRunner import xO_ComfyUIPortRunner
 from .xO_TestScriptRunner import xO_TestScriptRunner
 from .xO_WorkflowRunner import xO_WorkflowRunner
+from .xO_ascii_out import xO_Ascii
 from .init.display import display_init_info
 
 NODE_CLASS_MAPPINGS = {
@@ -33,6 +34,7 @@ NODE_CLASS_MAPPINGS = {
     "xO_ComfyUIPortRunner": xO_ComfyUIPortRunner,
     "xO_TestScriptRunner": xO_TestScriptRunner,
     "xO_WorkflowRunner": xO_WorkflowRunner,
+    "xO_Ascii": xO_Ascii,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -42,6 +44,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "xO_ComfyUIPortRunner": "🚀 ComfyUI Port Runner",
     "xO_TestScriptRunner": "🧪 Test Script Runner",
     "xO_WorkflowRunner": "🔄 Workflow Runner",
+    "xO_Ascii": "ASCII Art xO🐘",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
