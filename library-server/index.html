@@ -1,0 +1,2129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ComfyUI Gallery</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&family=Segoe+UI+Emoji&display=swap');
+
+        body {
+            background: linear-gradient(45deg, #2d0a3f, #1a0522);
+            color: #ffffff;
+            font-family: 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', Tahoma, Geneva, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .title-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .title-text {
+            color: #ff79c6;
+            text-shadow: 0 0 10px #ff79c6, 0 0 20px #ff79c6;
+            font-size: 2.5em;
+            margin: 0;
+            padding: 20px 0;
+        }
+        .title-emoji {
+            font-family: 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+            font-size: 1.2em;
+            vertical-align: middle;
+            margin: 0 10px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .image-card {
+            background: rgba(40, 42, 54, 0.8);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid #ff79c6;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                       filter 0.3s ease;
+            position: relative;
+            transform-style: preserve-3d;
+            perspective: 1500px;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            margin: 10px;
+            will-change: transform;
+            transform-origin: center center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3),
+                       0 0 20px rgba(255, 121, 198, 0.2);
+        }
+        .image-card:hover {
+            transform: scale(1.08);
+            filter: brightness(1.05);
+            box-shadow: 
+                /* Base shadow */
+                0 10px 20px rgba(0, 0, 0, 0.4),
+                /* Glow effect */
+                0 0 30px rgba(255, 121, 198, 0.4),
+                /* Dynamic shadow based on tilt */
+                var(--shadow-x, -15px) var(--shadow-y, -15px) 20px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+        }
+        .image-container {
+            position: relative;
+            padding-top: 100%;
+            overflow: hidden;
+            background: #1a0522;
+            cursor: pointer;
+            transform-style: preserve-3d;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(45deg, rgba(40, 42, 54, 0.8), rgba(26, 5, 34, 0.9));
+        }
+
+        .image-container img.thumbnail,
+        .image-container img.preview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+
+        .image-container .click-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 4;
+        }
+
+        .image-actions {
+            display: none;
+        }
+
+        .image-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: radial-gradient(
+                circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+                rgba(255, 121, 198, 0.1), 
+                transparent 150px
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 5;
+        }
+
+        .image-container:hover::after {
+            opacity: 1;
+        }
+
+        .image-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        .image-card:hover img {
+            transform: scale(1.05);
+        }
+        .image-info {
+            padding: 15px;
+            background: rgba(40, 42, 54, 0.9);
+            z-index: 5;
+            transform-style: preserve-3d;
+            transition: transform 0.2s ease-out;
+        }
+        .image-name {
+            color: #ff79c6;
+            margin: 0;
+            font-size: 0.9em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .image-date {
+            color: #bd93f9;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #ff79c6;
+            font-size: 1.2em;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #ff5555;
+            font-size: 1.2em;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            max-width: 90%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+        .image-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        .image-card:hover .image-actions {
+            opacity: 1;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-delete {
+            background: rgba(255, 85, 85, 0.8);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-delete:hover {
+            background: rgba(255, 85, 85, 1);
+            transform: translateY(-2px);
+        }
+
+        .btn-delete:active {
+            transform: translateY(0);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: rgba(40, 42, 54, 0.95);
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-left: 4px solid #50fa7b;
+        }
+
+        .toast.error {
+            border-left: 4px solid #ff5555;
+        }
+
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+        }
+
+        .dialog {
+            background: #282a36;
+            padding: 25px;
+            border-radius: 15px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            transform: scale(0.9);
+            opacity: 0;
+            transition: all 0.2s ease;
+        }
+
+        .dialog-overlay.active {
+            display: flex;
+        }
+
+        .dialog-overlay.active .dialog {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .dialog-title {
+            color: #ff79c6;
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+        }
+
+        .dialog-content {
+            margin-bottom: 20px;
+            color: #f8f8f2;
+            line-height: 1.5;
+        }
+
+        .dialog-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-cancel {
+            background: rgba(98, 114, 164, 0.2);
+            color: #6272a4;
+            border: 1px solid #6272a4;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(98, 114, 164, 0.4);
+        }
+
+        .btn-confirm {
+            background: rgba(255, 85, 85, 0.2);
+            color: #ff5555;
+            border: 1px solid #ff5555;
+        }
+
+        .btn-confirm:hover {
+            background: rgba(255, 85, 85, 0.4);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #ff79c6;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .formatted-filename {
+            display: block;
+            font-size: 0.9em;
+            color: #ff79c6;
+            margin-bottom: 4px;
+        }
+
+        .formatted-date {
+            font-size: 0.8em;
+            color: #bd93f9;
+        }
+
+        .image-card.selected {
+            transform: translateY(-8px) scale(1.03);
+            border: 2px solid #50fa7b;
+            box-shadow: 0 0 30px rgba(80, 250, 123, 0.4),
+                       0 0 60px rgba(80, 250, 123, 0.2),
+                       0 0 90px rgba(80, 250, 123, 0.1);
+            animation: selectedPulse 2s infinite;
+        }
+
+        .image-card.selected:hover {
+            transform: translateY(-10px) scale(1.04);
+        }
+
+        .image-container img.preview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 2;
+        }
+
+        .image-container img.thumbnail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        .image-container.loading::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 121, 198, 0.3);
+            border-top-color: #ff79c6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+        }
+
+        @keyframes selectedPulse {
+            0% {
+                box-shadow: 0 0 30px rgba(80, 250, 123, 0.4),
+                           0 0 60px rgba(80, 250, 123, 0.2),
+                           0 0 90px rgba(80, 250, 123, 0.1);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(80, 250, 123, 0.5),
+                           0 0 80px rgba(80, 250, 123, 0.3),
+                           0 0 120px rgba(80, 250, 123, 0.2);
+            }
+            100% {
+                box-shadow: 0 0 30px rgba(80, 250, 123, 0.4),
+                           0 0 60px rgba(80, 250, 123, 0.2),
+                           0 0 90px rgba(80, 250, 123, 0.1);
+            }
+        }
+
+        .selection-actions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(40, 42, 54, 0.95);
+            padding: 15px 25px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .selection-actions.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .btn-selection {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff3333;
+            border: 1px solid #ff3333;
+            transition: all 0.3s ease;
+        }
+
+        .btn-selection:hover {
+            background: rgba(255, 0, 0, 0.4);
+            color: #ff5555;
+            filter: brightness(1.3);
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+        }
+
+        .server-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(40, 42, 54, 0.95);
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #50fa7b;
+            transition: background-color 0.3s ease;
+        }
+
+        .server-status.disconnected .status-dot {
+            background: #ff5555;
+        }
+
+        .server-status.disconnected {
+            background: rgba(255, 85, 85, 0.2);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .gallery-message {
+            text-align: center;
+            padding: 40px;
+            color: #ff79c6;
+            font-size: 1.2em;
+            background: rgba(40, 42, 54, 0.8);
+            border-radius: 15px;
+            margin: 20px;
+            border: 2px solid #ff79c6;
+        }
+
+        .image-card .card-content {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .tilt-effect {
+            transition: transform 0.2s ease-out;
+            will-change: transform;
+        }
+
+        .card-content::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                125deg,
+                rgba(255, 255, 255, 0.2) 0%,
+                rgba(255, 255, 255, 0.05) 30%,
+                transparent 60%
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        .image-card:hover .card-content::after {
+            opacity: 1;
+        }
+
+        .image-card .card-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                var(--gradient-angle, 45deg),
+                rgba(255, 255, 255, 0.1),
+                transparent
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .image-card:hover .card-content::before {
+            opacity: 1;
+        }
+
+        /* Prevent text selection */
+        .image-container, 
+        .image-info,
+        .formatted-filename,
+        .formatted-date {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .sorting-controls {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
+            padding: 15px 0;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 121, 198, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+        }
+
+        .sort-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 0 20px;
+        }
+
+        .btn-sort {
+            background: rgba(40, 42, 54, 0.9);
+            color: #ff79c6;
+            border: 2px solid #ff79c6;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .btn-sort .sort-icon {
+            font-size: 1.2em;
+        }
+
+        .btn-sort:hover {
+            background: rgba(255, 121, 198, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 121, 198, 0.2);
+        }
+
+        .btn-sort.active {
+            background: rgba(255, 121, 198, 0.2);
+            box-shadow: 0 0 20px rgba(255, 121, 198, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-square {
+            width: 44px;
+            height: 44px;
+            min-width: unset;
+            padding: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .sort-buttons {
+                gap: 8px;
+            }
+
+            .btn-sort {
+                padding: 8px 15px;
+                font-size: 0.8em;
+                min-width: 80px;
+            }
+
+            .btn-square {
+                width: 38px;
+                height: 38px;
+            }
+        }
+
+        .selection-actions {
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .selection-actions.show {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .btn-delete-selected {
+            background: rgba(255, 85, 85, 0.2);
+            color: #ff5555;
+            border: 2px solid #ff5555;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-delete-selected:hover {
+            background: rgba(255, 85, 85, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 85, 85, 0.2);
+        }
+
+        .selection-count::before {
+            content: attr(data-count);
+            background: rgba(255, 85, 85, 0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .sorting-controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .selection-actions {
+                width: 100%;
+                display: flex;
+                justify-content: flex-end;
+            }
+        }
+
+        .sorting-controls {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
+            padding: 15px 0;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 121, 198, 0.2);
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .sort-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-sort {
+            background: rgba(40, 42, 54, 0.9);
+            color: #ff79c6;
+            border: 2px solid #ff79c6;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 100px;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-sort::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 121, 198, 0.1), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .btn-sort:hover::before {
+            opacity: 1;
+        }
+
+        .btn-sort.active {
+            background: rgba(255, 121, 198, 0.2);
+            box-shadow: 0 0 20px rgba(255, 121, 198, 0.3);
+            animation: activeGlow 2s infinite;
+        }
+
+        @keyframes activeGlow {
+            0% {
+                box-shadow: 0 0 20px rgba(255, 121, 198, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(255, 121, 198, 0.5);
+            }
+            100% {
+                box-shadow: 0 0 20px rgba(255, 121, 198, 0.3);
+            }
+        }
+
+        .search-container {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+            min-width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 40px 10px 15px;
+            border-radius: 8px;
+            border: 2px solid #ff79c6;
+            background: rgba(40, 42, 54, 0.9);
+            color: #ff79c6;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 121, 198, 0.3);
+            background: rgba(40, 42, 54, 1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.1em;
+            pointer-events: none;
+        }
+
+        .selection-actions {
+            opacity: 0;
+            transform: translateX(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .selection-actions.show {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .btn-delete-selected {
+            background: rgba(255, 85, 85, 0.2);
+            color: #ff5555;
+            border: 2px solid #ff5555;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-delete-selected:hover {
+            background: rgba(255, 85, 85, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 85, 85, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .controls-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-container {
+                order: -1;
+                max-width: none;
+            }
+
+            .selection-actions {
+                width: 100%;
+                text-align: right;
+            }
+        }
+
+        .fullscreen-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 5, 34, 0.98);
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(20px);
+        }
+
+        .fullscreen-image {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .fullscreen-controls {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+
+        .fullscreen-nav-button {
+            background: rgba(255, 121, 198, 0.2);
+            color: #ff79c6;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .fullscreen-nav-button:hover {
+            background: rgba(255, 121, 198, 0.4);
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="serverStatus" class="server-status">
+        <span class="status-dot"></span>
+        <span class="status-text">Connected</span>
+    </div>
+
+    <div class="container">
+        <div class="title-container">
+            <h1 class="title-text">
+                <span class="title-emoji">✨</span>
+                ComfyUI Gallery
+                <span class="title-emoji">✨</span>
+            </h1>
+        </div>
+        <div class="sorting-controls">
+            <div class="controls-container">
+                <div class="sort-buttons">
+                    <button class="btn-sort active" data-sort="date-desc" onclick="handleSortClick(this)">
+                        <span class="sort-icon">🕒</span>
+                        Newest
+                    </button>
+                    <button class="btn-sort" data-sort="name-asc" onclick="handleSortClick(this)">
+                        <span class="sort-icon">📝</span>
+                        Name
+                    </button>
+                    <button class="btn-sort" data-sort="size-desc" onclick="handleSortClick(this)">
+                        <span class="sort-icon">📊</span>
+                        Size
+                    </button>
+                    <button class="btn-sort" data-sort="type" onclick="handleSortClick(this)">
+                        <span class="sort-icon">🏷️</span>
+                        Type
+                    </button>
+                    <button id="reverseOrder" class="btn-sort btn-square" onclick="handleReverseOrder()" title="Reverse Order">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff79c6'%3E%3Cpath d='M7 14l5-5 5 5z'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E" 
+                             alt="Reverse Order" 
+                             class="sort-icon">
+                    </button>
+                </div>
+                <div class="search-container">
+                    <input type="text" 
+                           id="searchInput" 
+                           class="search-input" 
+                           placeholder="Search images..."
+                           onkeyup="handleSearch(event)">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <div id="selectionActions" class="selection-actions">
+                    <button class="btn-delete-selected" onclick="deleteSelected()">
+                        <span class="selection-count"></span>
+                        Delete Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="gallery" class="gallery">
+            <div class="loading">Loading images... ⌛</div>
+        </div>
+    </div>
+
+    <div id="modal" class="modal" onclick="closeModal()">
+        <img id="modal-img" class="modal-content">
+    </div>
+
+    <div id="deleteDialog" class="dialog-overlay">
+        <div class="dialog">
+            <h3 class="dialog-title">Confirm Delete</h3>
+            <div class="dialog-content">
+                Are you sure you want to delete this image? This action cannot be undone.
+            </div>
+            <div class="dialog-buttons">
+                <button class="btn btn-cancel" onclick="closeDeleteDialog()">Cancel</button>
+                <button class="btn btn-confirm" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <div id="fullscreenView" class="fullscreen-view">
+        <div class="fullscreen-content">
+            <img id="fullscreenImage" class="fullscreen-image" src="" alt="">
+            <div class="fullscreen-controls">
+                <button class="fullscreen-nav-button" onclick="navigateFullscreen('prev')">←</button>
+                <button class="fullscreen-nav-button" onclick="navigateFullscreen('next')">→</button>
+            </div>
+            <button class="close-fullscreen" onclick="closeFullscreenView()">
+                <span class="close-icon">×</span>
+            </button>
+            <div class="image-info-overlay">
+                <span class="filename"></span>
+                <span class="date"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentImageToDelete = null;
+        let selectedImages = new Set();
+        let lastSelectedIndex = -1;
+        let serverConnected = true;
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+        let retryTimeout = null;
+        const REFRESH_INTERVAL = 10000; // Time between refreshes in ms
+        const REFRESH_DEBOUNCE = 2000;  // Minimum time between refreshes
+        let lastRefreshTime = 0;
+        let refreshTimeout = null;
+
+        // Cache management
+        const IMAGE_CACHE_KEY = 'gallery_image_cache';
+        const CACHE_VERSION = '1.0';
+        const CACHE_EXPIRY = 1000 * 60 * 60; // 1 hour
+        let lastUpdateTimestamp = 0;
+        const UPDATE_INTERVAL = 10000; // 10 seconds
+
+        // Cache structure
+        const imageCache = {
+            version: CACHE_VERSION,
+            timestamp: 0,
+            images: [],
+            thumbnailBlobs: new Map()
+        };
+
+        // Load cache on startup
+        async function initializeCache() {
+            try {
+                const cached = localStorage.getItem(IMAGE_CACHE_KEY);
+                if (cached) {
+                    const parsedCache = JSON.parse(cached);
+                    if (parsedCache.version === CACHE_VERSION && 
+                        Date.now() - parsedCache.timestamp < CACHE_EXPIRY) {
+                        imageCache.timestamp = parsedCache.timestamp;
+                        imageCache.images = parsedCache.images;
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.warn('Cache initialization failed:', error);
+            }
+            return false;
+        }
+
+        function updateServerStatus(connected) {
+            const statusElement = document.getElementById('serverStatus');
+            if (!statusElement) return; // Skip if element doesn't exist
+            
+            const statusText = statusElement.querySelector('.status-text');
+            if (!statusText) return; // Skip if text element doesn't exist
+            
+            serverConnected = connected;
+            
+            if (connected) {
+                statusElement.classList.remove('disconnected');
+                statusText.textContent = 'Connected';
+                retryCount = 0;
+            } else {
+                statusElement.classList.add('disconnected');
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        function createImageCard(image, index) {
+            const formattedName = formatFilename(image.name);
+            const formattedDate = formatDate(image.date);
+            
+            const card = document.createElement('div');
+            card.className = 'image-card';
+            card.dataset.imagePath = image.path;
+            
+            card.innerHTML = `
+                <div class="card-content tilt-effect">
+                    <div class="image-container" 
+                         onmousemove="handleTiltEffect(event, this)"
+                         ondblclick="openFullscreenView(event, '${image.path}', this.closest('.image-card'))"
+                         onclick="handleSingleClick(event, '${image.path}', ${index})">
+                        <div class="click-layer"></div>
+                        <img class="thumbnail" 
+                             src="/thumbnails/${image.thumbnail}" 
+                             alt="${formattedName}"
+                             onmouseover="loadFullImage(this, '/output/${image.path}')"
+                             onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22><rect width=%221%22 height=%221%22 fill=%22%23333%22/></svg>'">
+                        <img class="preview" alt="${formattedName}">
+                    </div>
+                    <div class="image-info">
+                        <div class="formatted-filename">${formattedName}</div>
+                        <div class="formatted-date">${formattedDate}</div>
+                    </div>
+                </div>
+            `;
+
+            const content = card.querySelector('.card-content');
+            
+            card.addEventListener('mouseenter', (e) => {
+                content.style.transition = 'none';
+                handleTiltEffect(e, content); // Initial tilt on enter
+            });
+            
+            card.addEventListener('mousemove', (e) => {
+                requestAnimationFrame(() => handleTiltEffect(e, content));
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                handleMouseLeave(card);
+            });
+
+            return card;
+        }
+
+        // Function to compare image lists
+        function imagesHaveChanged(oldImages, newImages) {
+            if (oldImages.length !== newImages.length) return true;
+            
+            // Create maps for faster lookup
+            const oldMap = new Map(oldImages.map(img => [img.path, img]));
+            const newMap = new Map(newImages.map(img => [img.path, img]));
+            
+            // Check if any images have been added or removed
+            for (const [path, oldImg] of oldMap) {
+                const newImg = newMap.get(path);
+                if (!newImg) return true; // Image was removed
+                
+                // Check if image was modified
+                if (oldImg.date !== newImg.date) return true;
+            }
+            
+            // Check for new images
+            for (const path of newMap.keys()) {
+                if (!oldMap.has(path)) return true;
+            }
+            
+            return false;
+        }
+
+        // Modified loadImages function
+        async function loadImages(force = false) {
+            const now = Date.now();
+            if (!force && now - lastUpdateTimestamp < UPDATE_INTERVAL) {
+                return;
+            }
+
+            try {
+                // First check if we need to update using HEAD request
+                const headResponse = await fetch('/api/images', { method: 'HEAD' });
+                const serverETag = headResponse.headers.get('ETag');
+                
+                // If ETag matches and we're not forcing update, use cache
+                if (!force && serverETag === imageCache.etag) {
+                    console.log('Using cached images (ETag match)');
+                    return;
+                }
+
+                const response = await fetch('/api/images');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const newImages = await response.json();
+                
+                // Check if images have actually changed
+                if (!force && !imagesHaveChanged(currentImages, newImages)) {
+                    console.log('Images unchanged, skipping redraw');
+                    return;
+                }
+
+                console.log('Images changed, updating display');
+                lastUpdateTimestamp = now;
+                updateServerStatus(true);
+                currentImages = newImages;
+
+                // Update cache
+                imageCache.images = currentImages;
+                imageCache.timestamp = now;
+                imageCache.etag = serverETag;
+
+                // Save to localStorage
+                localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify({
+                    version: CACHE_VERSION,
+                    timestamp: now,
+                    images: currentImages,
+                    etag: serverETag
+                }));
+
+                // Only redraw if we have changes
+                await sortAndDisplayImages();
+
+            } catch (error) {
+                console.error('Error loading images:', error);
+                if (imageCache.images.length > 0) {
+                    currentImages = imageCache.images;
+                    await displayCachedImages();
+                } else {
+                    handleLoadError();
+                }
+            }
+        }
+
+        // Function to display cached images
+        async function displayCachedImages() {
+            if (imageCache.images.length > 0) {
+                await sortAndDisplayImages(imageCache.images);
+            }
+        }
+
+        // Modified thumbnail loading with blob caching
+        async function loadThumbnail(thumbnailPath) {
+            // Check memory cache first
+            if (imageCache.thumbnailBlobs.has(thumbnailPath)) {
+                return imageCache.thumbnailBlobs.get(thumbnailPath);
+            }
+
+            try {
+                const response = await fetch(`/thumbnails/${thumbnailPath}`);
+                if (!response.ok) throw new Error('Thumbnail fetch failed');
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                // Store in memory cache
+                imageCache.thumbnailBlobs.set(thumbnailPath, objectUrl);
+
+                // Cleanup old cache entries if too many
+                if (imageCache.thumbnailBlobs.size > 200) { // Limit cache size
+                    const oldestKey = imageCache.thumbnailBlobs.keys().next().value;
+                    URL.revokeObjectURL(imageCache.thumbnailBlobs.get(oldestKey));
+                    imageCache.thumbnailBlobs.delete(oldestKey);
+                }
+
+                return objectUrl;
+
+            } catch (error) {
+                console.error('Error loading thumbnail:', error);
+                return null;
+            }
+        }
+
+        // Update createImageCard to use cached thumbnails
+        function createImageCard(image, index) {
+            const formattedName = formatFilename(image.name);
+            const formattedDate = formatDate(image.date);
+            
+            const card = document.createElement('div');
+            card.className = 'image-card';
+            card.dataset.imagePath = image.path;
+            
+            // Use a placeholder initially
+            card.innerHTML = `
+                <div class="card-content tilt-effect">
+                    <div class="image-container" onmousemove="handleTiltEffect(event, this)">
+                        <div class="click-layer" onclick="handleImageClick(event, '${image.path}', ${index})"></div>
+                        <img class="thumbnail" 
+                             src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'><rect width='1' height='1' fill='%23333'/></svg>"
+                             alt="${formattedName}">
+                        <img class="preview" alt="${formattedName}">
+                    </div>
+                    <div class="image-info">
+                        <div class="formatted-filename">${formattedName}</div>
+                        <div class="formatted-date">${formattedDate}</div>
+                    </div>
+                </div>
+            `;
+
+            // Load thumbnail asynchronously
+            loadThumbnail(image.thumbnail).then(thumbnailUrl => {
+                if (thumbnailUrl) {
+                    const thumbnailImg = card.querySelector('.thumbnail');
+                    thumbnailImg.src = thumbnailUrl;
+                }
+            });
+
+            return card;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Initializing gallery...');
+            
+            // Wait a moment for all elements to be ready
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Initialize sorting preference
+            const sortSelect = document.getElementById('sortCriteria');
+            const savedSort = localStorage.getItem('imageSortCriteria') || 'date-desc';
+            currentSortCriteria = savedSort;
+            
+            // Set active button
+            const activeButton = document.querySelector(`[data-sort="${savedSort}"]`);
+            if (activeButton) {
+                document.querySelectorAll('.btn-sort').forEach(btn => btn.classList.remove('active'));
+                activeButton.classList.add('active');
+            }
+
+            // Initialize cache and load images
+            await initializeCache();
+            await loadImages(true);
+            startPeriodicRefresh();
+        });
+
+        // Update periodic refresh
+        function startPeriodicRefresh() {
+            setInterval(() => {
+                if (document.visibilityState === 'visible' && serverConnected) {
+                    loadImages();
+                }
+            }, UPDATE_INTERVAL);
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            // Cleanup object URLs
+            imageCache.thumbnailBlobs.forEach(url => URL.revokeObjectURL(url));
+        });
+
+        function formatFilename(filename) {
+            return filename
+                .replace(/\.[^/.]+$/, '')
+                .replace(/_/g, ' ')
+                .replace(/(\d+)$/, ' #$1')
+                .trim();
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function showDeleteDialog(imagePath) {
+            currentImageToDelete = imagePath;
+            document.getElementById('deleteDialog').classList.add('active');
+        }
+
+        function closeDeleteDialog() {
+            document.getElementById('deleteDialog').classList.remove('active');
+            currentImageToDelete = null;
+        }
+
+        async function confirmDelete() {
+            if (!currentImageToDelete) return;
+
+            try {
+                const response = await fetch(`/delete/${currentImageToDelete}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // Remove the deleted image from currentImages
+                    currentImages = currentImages.filter(img => img.path !== currentImageToDelete);
+                    
+                    // Remove from cache
+                    if (imageCache.images) {
+                        imageCache.images = imageCache.images.filter(img => img.path !== currentImageToDelete);
+                    }
+                    
+                    // Update localStorage cache
+                    localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify({
+                        ...imageCache,
+                        images: imageCache.images
+                    }));
+
+                    // Immediately update display
+                    await sortAndDisplayImages();
+                    
+                    showToast('Image deleted successfully', 'success');
+                } else {
+                    throw new Error('Failed to delete image');
+                }
+            } catch (error) {
+                console.error('Error deleting image:', error);
+                showToast('Failed to delete image', 'error');
+            } finally {
+                closeDeleteDialog();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toast.className = `toast ${type}`;
+            toastMessage.textContent = message;
+            
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function openModal(imagePath) {
+            const modal = document.getElementById('modal');
+            const modalImg = document.getElementById('modal-img');
+            modal.style.display = 'flex';
+            
+            // Show loading spinner
+            modalImg.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#333"/></svg>';
+            
+            // Load the full image
+            const fullImage = new Image();
+            fullImage.onload = () => {
+                modalImg.src = imagePath;
+            };
+            fullImage.src = imagePath;
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        function handleImageClick(event, imagePath, index) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const card = event.target.closest('.image-card');
+            if (!card) return;
+
+            if (event.shiftKey && lastSelectedIndex !== -1) {
+                // Range selection
+                const cards = Array.from(document.querySelectorAll('.image-card'));
+                const start = Math.min(lastSelectedIndex, index);
+                const end = Math.max(lastSelectedIndex, index);
+                
+                // Check if we're extending or reducing selection
+                const isDeselecting = card.classList.contains('selected');
+                
+                for (let i = start; i <= end; i++) {
+                    const currentCard = cards[i];
+                    if (isDeselecting) {
+                        currentCard.classList.remove('selected');
+                        selectedImages.delete(currentCard.dataset.imagePath);
+                    } else {
+                        currentCard.classList.add('selected');
+                        selectedImages.add(currentCard.dataset.imagePath);
+                    }
+                }
+                lastSelectedIndex = index;
+            } else if (event.ctrlKey || event.metaKey) {
+                // Toggle selection with Ctrl/Cmd
+                card.classList.toggle('selected');
+                if (selectedImages.has(imagePath)) {
+                    selectedImages.delete(imagePath);
+                } else {
+                    selectedImages.add(imagePath);
+                }
+                lastSelectedIndex = index;
+            } else {
+                // Single selection
+                clearSelection();
+                card.classList.add('selected');
+                selectedImages.add(imagePath);
+                lastSelectedIndex = index;
+            }
+            
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            const selectionActions = document.getElementById('selectionActions');
+            const selectionCount = selectionActions.querySelector('.selection-count');
+            
+            if (selectedImages.size > 0) {
+                selectionCount.setAttribute('data-count', selectedImages.size);
+                selectionActions.classList.add('show');
+            } else {
+                selectionActions.classList.remove('show');
+                lastSelectedIndex = -1;
+            }
+        }
+
+        function clearSelection() {
+            selectedImages.clear();
+            document.querySelectorAll('.image-card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            updateSelectionUI();
+        }
+
+        async function deleteSelected() {
+            if (selectedImages.size === 0) return;
+
+            const count = selectedImages.size;
+            if (confirm(`Are you sure you want to delete ${count} selected image${count > 1 ? 's' : ''}?`)) {
+                const deletePromises = Array.from(selectedImages).map(imagePath =>
+                    fetch(`/delete/${encodeURIComponent(imagePath)}`, { 
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                );
+
+                try {
+                    const results = await Promise.all(deletePromises);
+                    const failedDeletes = results.filter(r => !r.ok).length;
+
+                    if (failedDeletes === 0) {
+                        // Remove deleted images from currentImages
+                        currentImages = currentImages.filter(img => !selectedImages.has(img.path));
+                        
+                        // Update cache
+                        imageCache.images = currentImages;
+                        localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify({
+                            ...imageCache,
+                            images: currentImages
+                        }));
+
+                        // Update display
+                        await sortAndDisplayImages();
+                        showToast(`Successfully deleted ${count} image${count > 1 ? 's' : ''}`, 'success');
+                    } else {
+                        showToast(`Failed to delete ${failedDeletes} image${failedDeletes > 1 ? 's' : ''}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting images:', error);
+                    showToast('Failed to delete images', 'error');
+                } finally {
+                    clearSelection();
+                }
+            }
+        }
+
+        // Initial load
+        loadImages();
+        startPeriodicRefresh();
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            clearTimeout(retryTimeout);
+        });
+
+        // Handle visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && serverConnected) {
+                loadImages();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeDeleteDialog();
+                clearSelection();
+            } else if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                const allImages = document.querySelectorAll('.image-card');
+                if (selectedImages.size === allImages.length) {
+                    clearSelection();
+                } else {
+                    allImages.forEach(card => {
+                        card.classList.add('selected');
+                        selectedImages.add(card.dataset.imagePath);
+                    });
+                    updateSelectionUI();
+                }
+            }
+        });
+
+        // Close dialog when clicking outside
+        document.getElementById('deleteDialog').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteDialog();
+            }
+        });
+
+        // Add this function to handle mouse move effects
+        function handleMouseMove(event, container) {
+            const rect = container.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            container.style.setProperty('--mouse-x', `${x}%`);
+            container.style.setProperty('--mouse-y', `${y}%`);
+        }
+
+        // Add this function to handle full image loading
+        function loadFullImage(thumbnailImg, fullImagePath) {
+            const container = thumbnailImg.parentElement;
+            const previewImg = container.querySelector('.preview');
+            
+            if (!previewImg.src || previewImg.src.includes('data:image')) {
+                container.classList.add('loading');
+                
+                const fullImage = new Image();
+                fullImage.onload = () => {
+                    previewImg.src = fullImagePath;
+                    previewImg.style.opacity = '1';
+                    container.classList.remove('loading');
+                };
+                fullImage.src = fullImagePath;
+            } else {
+                previewImg.style.opacity = '1';
+            }
+        }
+
+        // Add mouseout handler to hide preview
+        document.addEventListener('mouseover', function(e) {
+            if (!e.target.closest('.image-container')) {
+                document.querySelectorAll('.preview').forEach(img => {
+                    img.style.opacity = '0';
+                });
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            // Clear selection when clicking outside any image card
+            if (!e.target.closest('.image-card') && 
+                !e.target.closest('.selection-actions') && 
+                !e.target.closest('.dialog-overlay')) {
+                clearSelection();
+            }
+        });
+
+        // Add tilt effect handler
+        function handleTiltEffect(event, element) {
+            const card = element.closest('.image-card');
+            const rect = card.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+
+            // Calculate rotation angles
+            const maxRotation = 15;
+            const rotateY = ((mouseX - centerX) / (rect.width / 2)) * maxRotation;
+            const rotateX = -((mouseY - centerY) / (rect.height / 2)) * maxRotation;
+
+            // Calculate shadow offset based on tilt
+            const shadowX = -rotateY * 0.5;
+            const shadowY = -rotateX * 0.5;
+            card.style.setProperty('--shadow-x', `${shadowX}px`);
+            card.style.setProperty('--shadow-y', `${shadowY}px`);
+
+            // Calculate gradient angle based on mouse position
+            const angle = Math.atan2(mouseY - centerY, mouseX - centerX) * (180 / Math.PI);
+            card.style.setProperty('--gradient-angle', `${angle}deg`);
+
+            // Calculate lift and intensity
+            const maxLift = 30;
+            const distance = Math.sqrt(
+                Math.pow(mouseX - centerX, 2) + 
+                Math.pow(mouseY - centerY, 2)
+            );
+            const lift = Math.min(distance / 5, maxLift);
+            const intensity = Math.min(distance / (rect.width / 2), 1);
+
+            // Apply transform with enhanced perspective
+            const content = card.querySelector('.card-content');
+            content.style.transform = `
+                perspective(1000px)
+                rotateX(${rotateX * intensity}deg) 
+                rotateY(${rotateY * intensity}deg) 
+                translateZ(${lift}px)
+                scale(1.02)
+            `;
+
+            // Update lighting effect
+            const mouseXPercent = ((mouseX - rect.left) / rect.width) * 100;
+            const mouseYPercent = ((mouseY - rect.top) / rect.height) * 100;
+            
+            const glare = `
+                radial-gradient(
+                    circle at ${mouseXPercent}% ${mouseYPercent}%, 
+                    rgba(255, 255, 255, 0.2) 0%,
+                    rgba(255, 255, 255, 0.1) 20%,
+                    transparent 50%
+                ),
+                linear-gradient(
+                    ${angle}deg,
+                    rgba(255, 121, 198, 0.15) 0%,
+                    rgba(189, 147, 249, 0.15) 50%,
+                    transparent 100%
+                )
+            `;
+            
+            content.style.backgroundImage = glare;
+        }
+
+        // Add mouse leave handler to reset shadow
+        function handleMouseLeave(card) {
+            card.style.removeProperty('--shadow-x');
+            card.style.removeProperty('--shadow-y');
+            card.style.removeProperty('--gradient-angle');
+            const content = card.querySelector('.card-content');
+            content.style.transform = 'none';
+            content.style.backgroundImage = 'none';
+        }
+
+        // Sorting state management
+        let currentSortCriteria = 'date-desc';
+        let currentImages = [];
+
+        // Sorting state
+        let isReversed = false;
+
+        // Consolidated sort functions
+        const sortFunctions = {
+            'date-desc': (a, b) => new Date(b.date) - new Date(a.date),
+            'name-asc': (a, b) => a.name.localeCompare(b.name),
+            'size-desc': (a, b) => {
+                // Parse size from file path if available, or use 0 as fallback
+                const sizeA = a.size || 0;
+                const sizeB = b.size || 0;
+                return sizeB - sizeA;
+            },
+            'type': (a, b) => {
+                const typeA = a.name.split('.').pop().toLowerCase();
+                const typeB = b.name.split('.').pop().toLowerCase();
+                return typeA.localeCompare(typeB);
+            }
+        };
+
+        // Handle sort button clicks
+        function handleSortClick(button) {
+            // Remove active class from all buttons
+            document.querySelectorAll('.btn-sort').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to clicked button
+            button.classList.add('active');
+            
+            // Update sort criteria
+            currentSortCriteria = button.dataset.sort;
+            
+            // Show loading state
+            const gallery = document.getElementById('gallery');
+            gallery.style.opacity = '0.5';
+            
+            // Sort and update display
+            setTimeout(async () => {
+                // Create a copy of the images array
+                const sortedImages = [...currentImages];
+                
+                // Apply sorting
+                const sortFn = sortFunctions[currentSortCriteria];
+                if (sortFn) {
+                    sortedImages.sort(sortFn);
+                }
+                
+                // Apply reverse if needed
+                if (isReversed) {
+                    sortedImages.reverse();
+                }
+                
+                // Update currentImages with sorted array
+                currentImages = sortedImages;
+                
+                // Update display
+                await sortAndDisplayImages();
+                gallery.style.opacity = '1';
+                
+                // Save preference
+                localStorage.setItem('imageSortCriteria', currentSortCriteria);
+            }, 50);
+        }
+
+        // Handle reverse order button click
+        function handleReverseOrder() {
+            isReversed = !isReversed;
+            
+            // Update icon
+            const icon = document.querySelector('.sort-icon');
+            if (icon) {
+                icon.classList.toggle('reversed', isReversed);
+            }
+            
+            // Show loading state
+            const gallery = document.getElementById('gallery');
+            gallery.style.opacity = '0.5';
+            
+            // Reverse current images and update display
+            currentImages.reverse();
+            
+            setTimeout(async () => {
+                await sortAndDisplayImages();
+                gallery.style.opacity = '1';
+            }, 50);
+        }
+
+        // Modified sortAndDisplayImages function
+        async function sortAndDisplayImages() {
+            const gallery = document.getElementById('gallery');
+            
+            // Save scroll position
+            const scrollPos = window.scrollY;
+            
+            if (!currentImages || currentImages.length === 0) {
+                gallery.innerHTML = `
+                    <div class="gallery-message">
+                        No images found in the output directory
+                    </div>
+                `;
+                return;
+            }
+
+            // Create document fragment for better performance
+            const fragment = document.createDocumentFragment();
+
+            // Display images in current order
+            currentImages.forEach((image, index) => {
+                const card = createImageCard(image, index);
+                fragment.appendChild(card);
+            });
+
+            // Update DOM once
+            gallery.innerHTML = '';
+            gallery.appendChild(fragment);
+
+            // Restore scroll position if there are still images
+            if (currentImages.length > 0) {
+                window.scrollTo(0, scrollPos);
+            }
+
+            // Animate cards
+            requestAnimationFrame(() => {
+                gallery.querySelectorAll('.image-card').forEach((card, i) => {
+                    requestAnimationFrame(() => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    });
+                });
+            });
+        }
+
+        // Add error handling function
+        function handleLoadError() {
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = `
+                <div class="gallery-message error">
+                    Failed to load images. 
+                    <button onclick="loadImages(true)" class="btn">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+
+        // Save sort preference
+        window.addEventListener('beforeunload', () => {
+            localStorage.setItem('imageSortCriteria', currentSortCriteria);
+        });
+
+        // Update click outside handler to only clear selection when clicking gallery background
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.image-card') && 
+                !e.target.closest('.selection-actions') && 
+                !e.target.closest('.sort-buttons') &&
+                e.target.closest('.gallery')) {
+                clearSelection();
+            }
+        });
+
+        function handleSearch(event) {
+            const searchTerm = event.target.value.toLowerCase();
+            const cards = document.querySelectorAll('.image-card');
+            
+            cards.forEach(card => {
+                const filename = card.querySelector('.formatted-filename').textContent.toLowerCase();
+                const matches = filename.includes(searchTerm);
+                card.style.display = matches ? '' : 'none';
+            });
+        }
+
+        function openFullscreenView(event, imagePath, card) {
+            event.preventDefault();
+            event.stopPropagation();
+            preventSingleClick = true;
+            clearTimeout(clickTimer);
+
+            const fullscreenView = document.getElementById('fullscreenView');
+            const fullscreenImage = document.getElementById('fullscreenImage');
+            const imageInfo = fullscreenView.querySelector('.image-info-overlay');
+            
+            // Show loading state
+            fullscreenImage.style.opacity = '0';
+            fullscreenView.classList.add('active');
+
+            // Load full resolution image
+            const img = new Image();
+            img.onload = () => {
+                fullscreenImage.src = img.src;
+                fullscreenImage.style.opacity = '1';
+                
+                // Update info
+                const filename = card.querySelector('.formatted-filename').textContent;
+                const date = card.querySelector('.formatted-date').textContent;
+                imageInfo.innerHTML = `
+                    <div class="filename">${filename}</div>
+                    <div class="date">${date}</div>
+                `;
+            };
+            img.src = `/output/${imagePath}`;
+
+            // Add keyboard navigation
+            document.addEventListener('keydown', handleFullscreenKeypress);
+        }
+
+        function closeFullscreenView() {
+            const fullscreenView = document.getElementById('fullscreenView');
+            fullscreenView.classList.remove('active');
+            document.removeEventListener('keydown', handleFullscreenKeypress);
+        }
+
+        function handleFullscreenKeypress(event) {
+            if (!document.getElementById('fullscreenView').classList.contains('active')) return;
+
+            switch(event.key) {
+                case 'Escape':
+                    closeFullscreenView();
+                    break;
+                case 'ArrowLeft':
+                    navigateFullscreen('prev');
+                    break;
+                case 'ArrowRight':
+                    navigateFullscreen('next');
+                    break;
+            }
+        }
+
+        // Add fullscreen navigation
+        function navigateFullscreen(direction) {
+            const currentImage = document.getElementById('fullscreenImage').src;
+            const currentPath = decodeURIComponent(currentImage.split('/output/')[1]);
+            const currentIndex = currentImages.findIndex(img => img.path === currentPath);
+            
+            if (currentIndex === -1) return;
+
+            let newIndex;
+            if (direction === 'next') {
+                newIndex = currentIndex + 1 >= currentImages.length ? 0 : currentIndex + 1;
+            } else {
+                newIndex = currentIndex - 1 < 0 ? currentImages.length - 1 : currentIndex - 1;
+            }
+
+            const card = document.querySelector(`[data-image-path="${currentImages[newIndex].path}"]`);
+            if (card) {
+                openFullscreenView({ preventDefault: () => {}, stopPropagation: () => {} }, 
+                                  currentImages[newIndex].path, card);
+            }
+        }
+
+        // Add click delay detection for distinguishing single and double clicks
+        let clickTimer = null;
+        let preventSingleClick = false;
+
+        function handleSingleClick(event, imagePath, index) {
+            if (preventSingleClick) {
+                preventSingleClick = false;
+                return;
+            }
+
+            clickTimer = setTimeout(() => {
+                if (!preventSingleClick) {
+                    handleImageClick(event, imagePath, index);
+                }
+            }, 200);
+        }
+
+        // Update the fullscreen view styles
+        const fullscreenStyles = `
+            .fullscreen-view {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(26, 5, 34, 0.98);
+                z-index: 1000;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
+                backdrop-filter: blur(20px);
+            }
+
+            .fullscreen-view.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            .fullscreen-content {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                max-width: 95vw;
+                max-height: 95vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .fullscreen-image {
+                max-width: 100%;
+                max-height: 90vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .fullscreen-controls {
+                position: absolute;
+                top: 50%;
+                left: 0;
+                right: 0;
+                transform: translateY(-50%);
+                display: flex;
+                justify-content: space-between;
+                padding: 0 20px;
+                pointer-events: none;
+            }
+
+            .fullscreen-nav-button {
+                background: rgba(255, 121, 198, 0.2);
+                color: #ff79c6;
+                border: none;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                pointer-events: auto;
+            }
+
+            .fullscreen-nav-button:hover {
+                background: rgba(255, 121, 198, 0.4);
+                transform: scale(1.1);
+            }
+
+            .close-fullscreen {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: rgba(255, 121, 198, 0.2);
+                color: #ff79c6;
+                border: none;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                font-size: 1.5em;
+            }
+
+            .close-fullscreen:hover {
+                background: rgba(255, 121, 198, 0.4);
+                transform: scale(1.1);
+            }
+
+            .image-info-overlay {
+                position: absolute;
+                bottom: 20px;
+                left: 0;
+                right: 0;
+                padding: 15px;
+                color: #ff79c6;
+                text-align: center;
+                background: rgba(26, 5, 34, 0.8);
+                backdrop-filter: blur(5px);
+            }
+        `;
+
+        // Add the styles to the document
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = fullscreenStyles;
+        document.head.appendChild(styleSheet);
+    </script>
+</body>
+</html> 

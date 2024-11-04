@@ -4,18 +4,95 @@ import time as time_module
 import sys
 import random
 from datetime import time as datetime_time
+import subprocess
+import logging
 
-#function to prompt user to display all ascii art files
+# Add new function to handle web server
+def run_web_server():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    server_script = os.path.join(current_dir, '..', 'library-server', 'ascii_server.py')
+    
+    # Get path to ComfyUI's Python
+    comfy_dir = os.path.abspath(os.path.join(current_dir, '..', '..', '..'))
+    python_path = os.path.join(comfy_dir, 'python_embeded', 'python.exe')
+    
+    if not os.path.exists(python_path):
+        # Fallback to system Python if embedded not found
+        python_path = 'python'
+    
+    # Log the paths for debugging
+    print(f"Current directory: {current_dir}")
+    print(f"Server script path: {server_script}")
+    print(f"Python path: {python_path}")
+    
+    try:
+        if sys.platform == 'win32':
+            # Normalize paths
+            server_script = os.path.normpath(server_script)
+            python_path = os.path.normpath(python_path)
+            
+            # Create batch file content
+            batch_content = f'''@echo off
+echo Starting ComfyUI Gallery Server...
+echo.
+cd /d "{os.path.dirname(server_script)}"
+"{python_path}" -u "{server_script}"
+if errorlevel 1 (
+    echo.
+    echo Server failed to start
+    echo Press any key to exit...
+    pause >nul
+) else (
+    echo.
+    echo Server stopped normally
+    echo Press any key to exit...
+    pause >nul
+)
+'''
+            batch_file = os.path.join(os.path.dirname(server_script), 'run_server.bat')
+            
+            with open(batch_file, 'w', encoding='utf-8') as f:
+                f.write(batch_content)
+            
+            # Run the batch file in a new window
+            subprocess.Popen(
+                ['cmd', '/c', 'start', 'ComfyUI Gallery Server', '/wait', batch_file],
+                shell=True,
+                cwd=os.path.dirname(server_script)
+            )
+        else:
+            # Unix-like systems
+            if sys.platform == 'darwin':  # macOS
+                subprocess.Popen(['open', '-a', 'Terminal', python_path, server_script])
+            else:  # Linux
+                terminals = ['gnome-terminal', 'xterm', 'konsole']
+                for terminal in terminals:
+                    try:
+                        subprocess.Popen([terminal, '--', python_path, server_script])
+                        break
+                    except FileNotFoundError:
+                        continue
+
+        print("\nStarting ASCII Art server at http://localhost:8200")
+        print("The server is running in a new window.")
+        print("You can close it by closing the server window.\n")
+        
+    except Exception as e:
+        print(f"Error starting server: {str(e)}")
+        logging.error(f"Failed to start server: {str(e)}")
+
+# Modify the display_ascii_art function
 def display_ascii_art():
-    #press y to display all ascii art files or enter to skip
-    user_input = input("Press y to display all ASCII art files or enter to skip: ")
+    user_input = input("Press 'y' to display ASCII art files, 'ui' for web interface, or enter to skip: ")
     if user_input.lower() == 'y':
         current_dir = os.path.dirname(os.path.abspath(__file__))
         ascii_dir = os.path.join(current_dir, 'ascii')
         for file in os.listdir(ascii_dir):
             with open(os.path.join(ascii_dir, file), 'r', encoding='utf-8') as f:
                 print(f.read())
-                input("Press space to continue...")  # Pause and await user input
+                input("Press enter to continue...")
+    elif user_input.lower() == 'ui':
+        run_web_server()
 
 def load_ascii_art(artfile='halo.txt'):
     current_dir = os.path.dirname(os.path.abspath(__file__))
