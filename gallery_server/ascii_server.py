@@ -544,8 +544,9 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                         console_clients.discard(self.wfile)
             elif self.path.startswith('/api/browse-folders'):
                 try:
-                    # Get the current path from query parameter, default to comfy_dir
+                    # Get the current path and show_all parameter from headers
                     current_path = self.headers.get('X-Current-Path', comfy_dir)
+                    show_all = self.headers.get('X-Show-All', 'false').lower() == 'true'
                     current_path = os.path.abspath(current_path)
                     
                     # Security check - prevent browsing outside of root drive
@@ -558,35 +559,47 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                             current_path = '/'
                     
                     # Get directory contents
-                    dirs = []
+                    items = []
                     try:
                         for entry in os.scandir(current_path):
-                            if entry.is_dir():
-                                try:
-                                    # Check if directory contains json files
-                                    has_json = any(f.endswith('.json') for f in os.listdir(entry.path))
-                                    dirs.append({
+                            try:
+                                if entry.is_dir() or (show_all and entry.is_file()):
+                                    # Check if directory contains json files or if it's a json file
+                                    is_json = entry.is_file() and entry.name.endswith('.json')
+                                    has_json = is_json or (
+                                        entry.is_dir() and 
+                                        any(f.endswith('.json') for f in os.listdir(entry.path))
+                                    )
+                                    
+                                    items.append({
                                         'name': entry.name,
                                         'path': entry.path,
+                                        'is_file': entry.is_file(),
+                                        'is_json': is_json,
                                         'has_json': has_json
                                     })
-                                except PermissionError:
-                                    continue
+                            except PermissionError:
+                                continue
                     except PermissionError:
-                        dirs = []
+                        items = []
                     
-                    # Get parent directory
+                    # Sort items: directories first, then files
+                    items.sort(key=lambda x: (x['is_file'], x['name'].lower()))
+                    
+                    # Add parent directory if it exists
                     parent_path = os.path.dirname(current_path)
                     if os.path.exists(parent_path) and parent_path != current_path:
-                        dirs.insert(0, {
+                        items.insert(0, {
                             'name': '..',
                             'path': parent_path,
+                            'is_file': False,
+                            'is_json': False,
                             'has_json': False
                         })
                     
                     response_data = {
                         'current_path': current_path,
-                        'directories': dirs
+                        'items': items
                     }
                     
                     self.send_response(200)

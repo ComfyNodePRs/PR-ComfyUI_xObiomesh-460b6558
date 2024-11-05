@@ -1342,3 +1342,74 @@ body {
 #workflowFolder {
     flex-grow: 1;
 }
+
+/* Add these styles for the browser controls and items */
+.browser-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.show-all-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ff79c6;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: rgba(40, 42, 54, 0.5);
+    border: 1px solid rgba(255, 121, 198, 0.2);
+    transition: all 0.3s ease;
+}
+
+.show-all-toggle:hover {
+    background: rgba(255, 121, 198, 0.1);
+}
+
+.show-all-toggle input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.folder-item .item-icon {
+    font-size: 1.2em;
+    min-width: 24px;
+    text-align: center;
+}
+
+.folder-item .item-name {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.folder-item .item-badge {
+    font-size: 0.8em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(80, 250, 123, 0.2);
+    color: #50fa7b;
+}
+
+.folder-item .file-badge {
+    background: rgba(189, 147, 249, 0.2);
+    color: #bd93f9;
+}
+
+.folder-item.file {
+    padding-left: 25px;
+}
+
+/* Update current path styles */
+.current-path {
+    flex: 1;
+    margin-right: 15px;
+    padding: 10px 15px;
+    background: rgba(40, 42, 54, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 121, 198, 0.2);
+    font-family: monospace;
+    word-break: break-all;
+}

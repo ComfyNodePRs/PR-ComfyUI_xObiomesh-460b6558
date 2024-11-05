@@ -259,12 +259,18 @@
             <button class="close-modal" onclick="closeFolderBrowser()">×</button>
             <h3 class="modal-title">Browse Folders</h3>
             
-            <div class="current-path">
-                <span id="currentPath"></span>
+            <div class="browser-controls">
+                <div class="current-path">
+                    <span id="currentPath"></span>
+                </div>
+                <label class="show-all-toggle">
+                    <input type="checkbox" id="showAllFiles" onchange="refreshBrowser()">
+                    Show All Files
+                </label>
             </div>
             
             <div class="folder-list">
-                <!-- Folders will be added here dynamically -->
+                <!-- Items will be added here dynamically -->
             </div>
             
             <div class="folder-controls">

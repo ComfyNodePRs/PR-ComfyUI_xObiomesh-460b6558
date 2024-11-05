@@ -1209,10 +1209,14 @@ async function openWorkflowModal() {
 
 // Add these folder browser functions
 let currentBrowsePath = null;
+let showAllFiles = false;
 
 async function openFolderBrowser() {
     const modal = document.getElementById('folderBrowserModal');
     modal.style.display = 'flex';
+    
+    // Reset show all checkbox
+    document.getElementById('showAllFiles').checked = showAllFiles;
     
     // Start from comfy_dir
     await browsePath(null);
@@ -1223,7 +1227,9 @@ async function browsePath(path) {
     folderList.innerHTML = '<div class="loading">Loading folders...</div>';
     
     try {
-        const headers = {};
+        const headers = {
+            'X-Show-All': showAllFiles.toString()
+        };
         if (path) {
             headers['X-Current-Path'] = path;
         }
@@ -1237,31 +1243,52 @@ async function browsePath(path) {
         // Update current path display
         document.getElementById('currentPath').textContent = data.current_path;
         
-        // Update select button state
-        document.getElementById('selectFolderButton').disabled = !data.directories.some(dir => 
-            dir.has_json && dir.name !== '..'
+        // Update select button state - enable if current folder has JSON files
+        document.getElementById('selectFolderButton').disabled = !data.items.some(item => 
+            !item.is_file && item.has_json && item.name !== '..'
         );
         
         // Populate folder list
         folderList.innerHTML = '';
-        data.directories.forEach(dir => {
-            const item = document.createElement('div');
-            item.className = 'folder-item';
+        data.items.forEach(item => {
+            const element = document.createElement('div');
+            element.className = `folder-item${item.is_file ? ' file' : ''}`;
             
-            item.innerHTML = `
-                <span class="folder-icon">${dir.name === '..' ? '⬆️' : '📁'}</span>
-                <span class="folder-name">${dir.name}</span>
-                ${dir.has_json ? '<span class="json-badge">Contains Workflows</span>' : ''}
+            let icon, badge = '';
+            if (item.name === '..') {
+                icon = '⬆️';
+            } else if (item.is_file) {
+                icon = item.is_json ? '📄' : '📝';
+                badge = `<span class="item-badge file-badge">${item.is_json ? 'JSON' : 'File'}</span>`;
+            } else {
+                icon = '📁';
+                if (item.has_json) {
+                    badge = '<span class="item-badge">Contains JSON</span>';
+                }
+            }
+            
+            element.innerHTML = `
+                <span class="item-icon">${icon}</span>
+                <span class="item-name">${item.name}</span>
+                ${badge}
             `;
             
-            item.addEventListener('click', () => browsePath(dir.path));
-            folderList.appendChild(item);
+            if (!item.is_file || item.is_json) {
+                element.addEventListener('click', () => browsePath(item.path));
+            }
+            
+            folderList.appendChild(element);
         });
         
     } catch (error) {
         console.error('Error browsing folders:', error);
         folderList.innerHTML = '<div class="error">Failed to load folders</div>';
     }
+}
+
+function refreshBrowser() {
+    showAllFiles = document.getElementById('showAllFiles').checked;
+    browsePath(currentBrowsePath);
 }
 
 function closeFolderBrowser() {
