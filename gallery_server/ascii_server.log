@@ -1,0 +1,223 @@
+2024-11-05 09:39:40,076 - INFO - Handling request for path: /
+2024-11-05 09:39:40,076 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:39:40,077 - INFO - Successfully served index.html
+2024-11-05 09:39:40,178 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:39:40,327 - INFO - Handling request for path: /api/images
+2024-11-05 09:39:40,327 - INFO - Getting image list
+2024-11-05 09:39:40,409 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:39:40,409 - INFO - Found 239 images
+2024-11-05 09:39:40,409 - INFO - Successfully sent image list
+2024-11-05 09:39:41,087 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:39:41,266 - INFO - Handling request for path: /api/images
+2024-11-05 09:39:41,266 - INFO - Getting image list
+2024-11-05 09:39:41,345 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:39:41,345 - INFO - Found 239 images
+2024-11-05 09:39:41,346 - INFO - Successfully sent image list
+2024-11-05 09:40:37,887 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:39,892 - INFO - Handling request for path: /
+2024-11-05 09:40:39,892 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:40:39,893 - INFO - Successfully served index.html
+2024-11-05 09:40:39,983 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:40,144 - INFO - Handling request for path: /api/images
+2024-11-05 09:40:40,144 - INFO - Getting image list
+2024-11-05 09:40:40,221 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:40,222 - INFO - Found 239 images
+2024-11-05 09:40:40,222 - INFO - Successfully sent image list
+2024-11-05 09:40:40,600 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:40,956 - INFO - Handling request for path: /api/images
+2024-11-05 09:40:40,956 - INFO - Getting image list
+2024-11-05 09:40:41,027 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:41,027 - INFO - Found 239 images
+2024-11-05 09:40:41,028 - INFO - Successfully sent image list
+2024-11-05 09:40:42,952 - INFO - Handling request for path: /
+2024-11-05 09:40:42,952 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:40:42,953 - INFO - Successfully served index.html
+2024-11-05 09:40:43,327 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:43,467 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:43,632 - INFO - Handling request for path: /api/images
+2024-11-05 09:40:43,632 - INFO - Getting image list
+2024-11-05 09:40:43,708 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:43,709 - INFO - Found 239 images
+2024-11-05 09:40:43,709 - INFO - Successfully sent image list
+2024-11-05 09:40:44,013 - INFO - Handling request for path: /api/images
+2024-11-05 09:40:44,013 - INFO - Getting image list
+2024-11-05 09:40:44,094 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:40:44,095 - INFO - Found 239 images
+2024-11-05 09:40:44,095 - INFO - Successfully sent image list
+2024-11-05 09:49:59,519 - INFO - Handling request for path: /
+2024-11-05 09:49:59,519 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:49:59,520 - INFO - Successfully served index.html
+2024-11-05 09:49:59,642 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:49:59,772 - INFO - Handling request for path: /api/images
+2024-11-05 09:49:59,773 - INFO - Getting image list
+2024-11-05 09:49:59,849 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:49:59,849 - INFO - Found 239 images
+2024-11-05 09:49:59,849 - INFO - Successfully sent image list
+2024-11-05 09:50:01,003 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:01,182 - INFO - Handling request for path: /api/images
+2024-11-05 09:50:01,182 - INFO - Getting image list
+2024-11-05 09:50:01,253 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:01,254 - INFO - Found 239 images
+2024-11-05 09:50:01,254 - INFO - Successfully sent image list
+2024-11-05 09:50:06,689 - INFO - Handling request for path: /
+2024-11-05 09:50:06,689 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:50:06,689 - INFO - Successfully served index.html
+2024-11-05 09:50:07,063 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:07,184 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:07,367 - INFO - Handling request for path: /api/images
+2024-11-05 09:50:07,367 - INFO - Getting image list
+2024-11-05 09:50:07,437 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:07,438 - INFO - Found 239 images
+2024-11-05 09:50:07,438 - INFO - Successfully sent image list
+2024-11-05 09:50:07,741 - INFO - Handling request for path: /api/images
+2024-11-05 09:50:07,741 - INFO - Getting image list
+2024-11-05 09:50:07,814 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:07,815 - INFO - Found 239 images
+2024-11-05 09:50:07,815 - INFO - Successfully sent image list
+2024-11-05 09:50:18,265 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:21,281 - INFO - Attempting to delete file: C:\ComfyUI_windev\ComfyUI\output\isaac_00456_.png
+2024-11-05 09:50:21,282 - INFO - "DELETE /delete/isaac_00456_.png HTTP/1.1" 200 -
+2024-11-05 09:50:21,282 - INFO - Successfully deleted file: C:\ComfyUI_windev\ComfyUI\output\isaac_00456_.png
+2024-11-05 09:50:27,092 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:27,272 - INFO - Handling request for path: /api/images
+2024-11-05 09:50:27,272 - INFO - Getting image list
+2024-11-05 09:50:27,343 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:27,344 - INFO - Found 238 images
+2024-11-05 09:50:27,344 - INFO - Successfully sent image list
+2024-11-05 09:50:27,972 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:28,285 - INFO - Handling request for path: /api/images
+2024-11-05 09:50:28,285 - INFO - Getting image list
+2024-11-05 09:50:28,362 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:50:28,363 - INFO - Found 238 images
+2024-11-05 09:50:28,363 - INFO - Successfully sent image list
+2024-11-05 09:52:17,412 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:17,419 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:17,570 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:17,570 - INFO - Getting image list
+2024-11-05 09:52:17,654 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:17,655 - INFO - Found 238 images
+2024-11-05 09:52:17,655 - INFO - Successfully sent image list
+2024-11-05 09:52:17,720 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:17,720 - INFO - Getting image list
+2024-11-05 09:52:17,796 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:17,797 - INFO - Found 238 images
+2024-11-05 09:52:17,797 - INFO - Successfully sent image list
+2024-11-05 09:52:18,033 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:18,196 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:18,196 - INFO - Getting image list
+2024-11-05 09:52:18,278 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:18,279 - INFO - Found 238 images
+2024-11-05 09:52:18,279 - INFO - Successfully sent image list
+2024-11-05 09:52:38,090 - INFO - Handling request for path: /
+2024-11-05 09:52:38,090 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:52:38,091 - INFO - Successfully served index.html
+2024-11-05 09:52:38,479 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:38,481 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:38,481 - INFO - Getting image list
+2024-11-05 09:52:38,553 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:38,553 - INFO - Found 238 images
+2024-11-05 09:52:38,553 - INFO - Successfully sent image list
+2024-11-05 09:52:38,803 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:39,254 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:39,254 - INFO - Getting image list
+2024-11-05 09:52:39,333 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:39,334 - INFO - Found 238 images
+2024-11-05 09:52:39,334 - INFO - Successfully sent image list
+2024-11-05 09:52:49,506 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:52,545 - INFO - Handling request for path: /
+2024-11-05 09:52:52,545 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:52:52,546 - INFO - Successfully served index.html
+2024-11-05 09:52:52,635 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:52,797 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:52,797 - INFO - Getting image list
+2024-11-05 09:52:52,868 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:52,869 - INFO - Found 238 images
+2024-11-05 09:52:52,869 - INFO - Successfully sent image list
+2024-11-05 09:52:53,246 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:53,554 - INFO - Handling request for path: /api/images
+2024-11-05 09:52:53,554 - INFO - Getting image list
+2024-11-05 09:52:53,635 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:52:53,636 - INFO - Found 238 images
+2024-11-05 09:52:53,637 - INFO - Successfully sent image list
+2024-11-05 09:53:03,813 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:53:05,509 - INFO - Attempting to delete file: C:\ComfyUI_windev\ComfyUI\output\isaac_00443_.png
+2024-11-05 09:53:05,510 - INFO - "DELETE /delete/isaac_00443_.png HTTP/1.1" 200 -
+2024-11-05 09:53:05,510 - INFO - Successfully deleted file: C:\ComfyUI_windev\ComfyUI\output\isaac_00443_.png
+2024-11-05 09:53:12,635 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:53:12,951 - INFO - Handling request for path: /api/images
+2024-11-05 09:53:12,951 - INFO - Getting image list
+2024-11-05 09:53:13,030 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:53:13,031 - INFO - Found 237 images
+2024-11-05 09:53:13,031 - INFO - Successfully sent image list
+2024-11-05 09:53:13,810 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:53:14,113 - INFO - Handling request for path: /api/images
+2024-11-05 09:53:14,113 - INFO - Getting image list
+2024-11-05 09:53:14,182 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:53:14,183 - INFO - Found 237 images
+2024-11-05 09:53:14,183 - INFO - Successfully sent image list
+2024-11-05 09:55:14,774 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:14,775 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:14,937 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:14,937 - INFO - Getting image list
+2024-11-05 09:55:15,008 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:15,008 - INFO - Found 237 images
+2024-11-05 09:55:15,009 - INFO - Successfully sent image list
+2024-11-05 09:55:15,078 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:15,078 - INFO - Getting image list
+2024-11-05 09:55:15,148 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:15,149 - INFO - Found 237 images
+2024-11-05 09:55:15,149 - INFO - Successfully sent image list
+2024-11-05 09:55:20,576 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:20,881 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:20,881 - INFO - Getting image list
+2024-11-05 09:55:20,951 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:20,952 - INFO - Found 237 images
+2024-11-05 09:55:20,952 - INFO - Successfully sent image list
+2024-11-05 09:55:22,470 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:22,774 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:22,774 - INFO - Getting image list
+2024-11-05 09:55:22,844 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:22,845 - INFO - Found 237 images
+2024-11-05 09:55:22,845 - INFO - Successfully sent image list
+2024-11-05 09:55:23,096 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:23,149 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:23,149 - INFO - Getting image list
+2024-11-05 09:55:23,220 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:23,220 - INFO - Found 237 images
+2024-11-05 09:55:23,220 - INFO - Successfully sent image list
+2024-11-05 09:55:23,799 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:24,103 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:24,103 - INFO - Getting image list
+2024-11-05 09:55:24,176 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:24,176 - INFO - Found 237 images
+2024-11-05 09:55:24,177 - INFO - Successfully sent image list
+2024-11-05 09:55:25,138 - INFO - Handling request for path: /
+2024-11-05 09:55:25,139 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:55:25,139 - INFO - Successfully served index.html
+2024-11-05 09:55:25,512 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:25,634 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:25,816 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:25,816 - INFO - Getting image list
+2024-11-05 09:55:25,891 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:25,892 - INFO - Found 237 images
+2024-11-05 09:55:25,892 - INFO - Successfully sent image list
+2024-11-05 09:55:26,194 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:26,194 - INFO - Getting image list
+2024-11-05 09:55:26,267 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:26,268 - INFO - Found 237 images
+2024-11-05 09:55:26,268 - INFO - Successfully sent image list
+2024-11-05 09:55:27,525 - INFO - Handling request for path: /
+2024-11-05 09:55:27,525 - INFO - "GET / HTTP/1.1" 200 -
+2024-11-05 09:55:27,526 - INFO - Successfully served index.html
+2024-11-05 09:55:27,626 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:27,778 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:27,778 - INFO - Getting image list
+2024-11-05 09:55:27,848 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:27,849 - INFO - Found 237 images
+2024-11-05 09:55:27,849 - INFO - Successfully sent image list
+2024-11-05 09:55:28,225 - INFO - "HEAD /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:28,543 - INFO - Handling request for path: /api/images
+2024-11-05 09:55:28,543 - INFO - Getting image list
+2024-11-05 09:55:28,615 - INFO - "GET /api/images HTTP/1.1" 200 -
+2024-11-05 09:55:28,616 - INFO - Found 237 images
+2024-11-05 09:55:28,616 - INFO - Successfully sent image list

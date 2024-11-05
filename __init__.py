@@ -11,13 +11,14 @@ if not os.path.exists(DIR_WEB_JS):
     os.makedirs(DIR_WEB_JS)
 
 # Copy JS files to web extensions
-shutil.copytree(DIR_DEV_JS, DIR_WEB_JS, dirs_exist_ok=True)
+if os.path.exists(DIR_DEV_JS):
+    shutil.copytree(DIR_DEV_JS, DIR_WEB_JS, dirs_exist_ok=True)
 
 # Handle run counter
-#create file and init to 0 if it doesn't exist
 if not os.path.exists(f'{THIS_DIR}/.run_counter'):
     with open(f'{THIS_DIR}/.run_counter', 'w') as f:
         f.write('0')
+        
 from .init.counter import RunCounter
 counter = RunCounter(THIS_DIR)
 run_count_normalized = counter.increment()
@@ -25,10 +26,9 @@ run_count_normalized = counter.increment()
 divisor = 10 ** (len(str(run_count_normalized)) - 1)
 run_count_normalized = run_count_normalized / divisor
 run_count = run_count_normalized * divisor
-#make run count an integer
 run_count = int(run_count)
 
-
+# Import node classes
 from .xO_OllamaTextGen import OllamaGenerate
 from .xO_OllamaModelSelect import OllamaModelSelector
 from .xO_ShowText import ShowText_xO
@@ -37,8 +37,10 @@ from .xO_TestScriptRunner import xO_TestScriptRunner
 from .xO_WorkflowRunner import xO_WorkflowRunner
 from .xO_GetImageFilename import xO_GetImageFilename
 from .xO_LoadRecentFile import xO_LoadRecentFile
-from .init.display import display_init_info, display_ascii_art
+from .init.event_runner import display_init_info
+from .gallery_server.gallery_server import run_web_server
 
+# Node mappings
 NODE_CLASS_MAPPINGS = {
     "OllamaTextGen": OllamaGenerate,
     "OllamaModelSelect": OllamaModelSelector,
@@ -65,7 +67,8 @@ __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 
 # Display initialization information
 display_init_info(run_count, run_count_normalized)
-display_ascii_art()
 
+# Start the gallery server
+server_process = run_web_server()
 
 __version__ = "0.1.x0"
