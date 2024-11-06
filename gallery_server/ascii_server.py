@@ -38,22 +38,36 @@ class ColorFormatter(logging.Formatter):
         formatted_time = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S')
         message = f"{color}{record.msg}{self.COLORS['RESET']}"
         
-        # Add to console queue
+        # Add to console queue with size limit
         try:
             console_data = {
                 'time': formatted_time,
                 'level': record.levelname,
                 'message': record.msg
             }
+            
+            # Remove oldest message if queue is full
+            if console_queue.full():
+                try:
+                    console_queue.get_nowait()
+                except:
+                    pass
+            
             console_queue.put(console_data)
             
-            # Notify all connected console clients
-            for client in console_clients:
+            # Notify console clients
+            dead_clients = set()
+            for client in connection_manager.console_clients:
                 try:
                     client.write(f"data: {json.dumps(console_data)}\n\n".encode())
                     client.flush()
                 except:
-                    console_clients.discard(client)
+                    dead_clients.add(client)
+            
+            # Remove dead clients
+            for client in dead_clients:
+                connection_manager.remove_client(client, is_console=True)
+                
         except:
             pass
         
@@ -74,11 +88,59 @@ for handler in logging.getLogger().handlers:
         handler.setFormatter(ColorFormatter('%(asctime)s - %(levelname)s - %(message)s'))
 
 # Global variables
-clients = []
-output_dir = None
-comfy_dir = None
-console_queue = Queue(maxsize=1000)  # Store last 1000 messages
-console_clients = set()
+MAX_CONSOLE_MESSAGES = 1000
+MAX_CLIENTS = 100
+CLEANUP_INTERVAL = 300  # 5 minutes
+
+# Add this new class for connection management
+class ConnectionManager:
+    def __init__(self):
+        self.clients = set()
+        self.console_clients = set()
+        self.last_cleanup = time.time()
+        
+    def add_client(self, client, is_console=False):
+        if is_console:
+            self.console_clients.add(client)
+        else:
+            self.clients.add(client)
+        self.cleanup_if_needed()
+            
+    def remove_client(self, client, is_console=False):
+        if is_console:
+            self.console_clients.discard(client)
+        else:
+            self.clients.discard(client)
+            
+    def cleanup_if_needed(self):
+        current_time = time.time()
+        if current_time - self.last_cleanup > CLEANUP_INTERVAL:
+            self.cleanup_connections()
+            self.last_cleanup = current_time
+            
+    def cleanup_connections(self):
+        # Clean up dead connections
+        for client_set in [self.clients, self.console_clients]:
+            dead_clients = set()
+            for client in client_set:
+                try:
+                    # Try to write a keepalive
+                    client.write(b":\n\n")
+                    client.flush()
+                except:
+                    dead_clients.add(client)
+            
+            # Remove dead clients
+            for client in dead_clients:
+                client_set.discard(client)
+                try:
+                    client.close()
+                except:
+                    pass
+
+# Replace global variables with ConnectionManager
+connection_manager = ConnectionManager()
+console_queue = Queue(maxsize=MAX_CONSOLE_MESSAGES)
 
 # Add thumbnail configuration
 THUMBNAIL_SIZE = (250, 250)  # Size for thumbnails
@@ -105,14 +167,14 @@ class ImageChangeHandler(FileSystemEventHandler):
             }
             
             message = f"data: {json.dumps(image_data)}\n\n"
-            client_count = len(clients)
-            for client in list(clients):
+            client_count = len(connection_manager.clients)
+            for client in list(connection_manager.clients):
                 try:
                     client.write(message.encode())
                     client.flush()
                 except:
-                    if client in clients:
-                        clients.remove(client)
+                    if client in connection_manager.clients:
+                        connection_manager.remove_client(client)
                         
             logging.info(f"📤 Notified {client_count} connected clients")
             
@@ -215,9 +277,11 @@ class SSEHandler(threading.Thread):
                     logging.error(f"SSE Error: {e}")
                     break
         finally:
-            if self.handler.wfile in clients:
-                clients.remove(self.handler.wfile)
-                logging.info(f"Client disconnected. Remaining clients: {len(clients)}")
+            connection_manager.remove_client(self.handler.wfile)
+            try:
+                self.handler.wfile.close()
+            except:
+                pass
 
     def stop(self):
         self.running = False
@@ -354,8 +418,31 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                     logging.error(f"Error serving file {file_path}: {str(e)}")
                     raise
             elif self.path == '/events':
-                logging.info(f"🔌 New client connected from {self.client_address[0]}")
-                # ... rest of events handling ...
+                try:
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/event-stream')
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Connection', 'keep-alive')
+                    self.end_headers()
+                    
+                    connection_manager.add_client(self.wfile)
+                    
+                    # Keep connection alive
+                    while True:
+                        try:
+                            self.wfile.write(b":\n\n")  # Send keepalive
+                            self.wfile.flush()
+                            time.sleep(15)
+                        except:
+                            break
+                            
+                    connection_manager.remove_client(self.wfile)
+                    
+                except Exception as e:
+                    logging.error(f"Error handling event stream: {str(e)}")
+                    if self.wfile in connection_manager.clients:
+                        connection_manager.remove_client(self.wfile)
+                        
             elif self.path == '/api/workflow-folders':
                 try:
                     # Get base workflow directories
@@ -515,17 +602,22 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                     self.send_header('Content-type', 'text/event-stream')
                     self.send_header('Cache-Control', 'no-cache')
                     self.send_header('Connection', 'keep-alive')
-                    self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
                     
                     # Send existing console messages
+                    messages = []
                     while not console_queue.empty():
-                        data = console_queue.get()
-                        self.wfile.write(f"data: {json.dumps(data)}\n\n".encode())
+                        try:
+                            messages.append(console_queue.get_nowait())
+                        except:
+                            break
+                            
+                    for msg in messages:
+                        console_queue.put(msg)  # Put messages back
+                        self.wfile.write(f"data: {json.dumps(msg)}\n\n".encode())
                         self.wfile.flush()
                     
-                    # Add client to console clients set
-                    console_clients.add(self.wfile)
+                    connection_manager.add_client(self.wfile, is_console=True)
                     
                     # Keep connection alive
                     while True:
@@ -535,13 +627,13 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                             time.sleep(15)
                         except:
                             break
-                        
-                    console_clients.discard(self.wfile)
+                            
+                    connection_manager.remove_client(self.wfile, is_console=True)
                     
                 except Exception as e:
                     logging.error(f"Error handling console stream: {str(e)}")
-                    if self.wfile in console_clients:
-                        console_clients.discard(self.wfile)
+                    if self.wfile in connection_manager.console_clients:
+                        connection_manager.remove_client(self.wfile, is_console=True)
             elif self.path.startswith('/api/browse-folders'):
                 try:
                     # Get the current path and show_all parameter from headers
@@ -611,6 +703,46 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     logging.error(f"Error browsing folders: {str(e)}")
                     self.send_error(500, 'Internal Server Error')
+            elif self.path == '/api/text-files':
+                try:
+                    text_files = []
+                    for root, _, files in os.walk(output_dir):
+                        for file in files:
+                            if file.lower().endswith(('.txt', '.json', '.md')):
+                                full_path = os.path.join(root, file)
+                                rel_path = os.path.relpath(full_path, output_dir).replace('\\', '/')
+                                
+                                # Read preview of text content
+                                try:
+                                    with open(full_path, 'r', encoding='utf-8') as f:
+                                        content = f.read(500)  # Read first 500 characters
+                                        preview = content[:500] + ('...' if len(content) > 500 else '')
+                                except Exception as e:
+                                    preview = f"Unable to read file content: {str(e)}"
+                                
+                                text_files.append({
+                                    'path': rel_path,
+                                    'name': file,
+                                    'date': datetime.fromtimestamp(os.path.getmtime(full_path)).strftime('%Y-%m-%d %H:%M:%S'),
+                                    'preview': preview,
+                                    'size': os.path.getsize(full_path)
+                                })
+                    
+                    # Sort files by date, newest first
+                    text_files.sort(key=lambda x: x['date'], reverse=True)
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    
+                    self.wfile.write(json.dumps(text_files).encode())
+                    logging.info(f"Found {len(text_files)} text files")
+                    
+                except Exception as e:
+                    logging.error(f"Error getting text file list: {str(e)}")
+                    self.send_error(500, 'Internal Server Error')
             else:
                 logging.warning(f"Path not found: {self.path}")
                 self.send_error(404, 'Not found')
@@ -665,6 +797,37 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                 else:
                     logging.warning(f"⚠️ File not found: {file_path}")
                     self.send_error(404, 'File not found')
+            elif self.path.startswith('/api/texts/'):
+                # Get the file path and decode URL-encoded characters
+                file_path = unquote(self.path[11:])  # Remove '/api/texts/'
+                logging.warning(f"🗑️ Delete request received for text file: {file_path}")
+                
+                # Security check
+                full_path = os.path.abspath(os.path.join(output_dir, file_path))
+                if not full_path.startswith(os.path.abspath(output_dir)):
+                    logging.error("❌ Attempted to delete file outside output directory")
+                    self.send_error(403, 'Access denied')
+                    return
+
+                if os.path.exists(full_path):
+                    try:
+                        # Delete the text file
+                        os.remove(full_path)
+                        logging.info(f"✅ Successfully deleted text file: {file_path}")
+
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({'success': True}).encode())
+                        
+                    except Exception as e:
+                        logging.error(f"❌ Error deleting text file: {e}")
+                        self.send_error(500, 'Failed to delete file')
+                else:
+                    logging.warning(f"⚠️ Text file not found: {file_path}")
+                    self.send_error(404, 'File not found')
+                
             else:
                 logging.warning(f"⚠️ Invalid delete path: {self.path}")
                 self.send_error(400, 'Invalid request')
@@ -852,6 +1015,10 @@ class ThreadedHTTPServer(HTTPServer):
         finally:
             self.shutdown_request(request)
 
+def schedule_restart():
+    logging.info("Scheduling server restart in 12 hours")
+    threading.Timer(12 * 60 * 60, lambda: os._exit(0)).start()
+
 def run_standalone_server():
     global output_dir, comfy_dir
     
@@ -880,6 +1047,9 @@ def run_standalone_server():
     logging.info(f"   Network: http://{local_ip}:8200")
     logging.info("\n⌨️  Press Ctrl+C to stop the server")
     logging.info("="*50)
+    
+    # Schedule restart every 12 hours
+    schedule_restart()
     
     try:
         server.serve_forever()

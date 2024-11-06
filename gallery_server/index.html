@@ -10,25 +10,49 @@
     <div class="side-panel">
         <div class="panel-header">
             <h3>ComfyUI Tools</h3>
+            <button class="pin-button" onclick="togglePin()" title="Pin panel">📌</button>
         </div>
         <div class="panel-content">
-            <div class="main-buttons">
-                <button class="panel-button" onclick="openWorkflowModal()">
-                    <span class="button-icon">📋</span>
-                    Select Workflow
+            <div class="view-toggle">
+                <button class="panel-button toggle-button active" onclick="toggleView('image')" id="imageViewBtn">
+                    <span class="button-icon">🖼️</span>
+                    ImageGen
                 </button>
-                <button class="panel-button run-workflow" onclick="runSelectedWorkflow()" disabled>
-                    <span class="button-icon">▶️</span>
-                    Run <span id="selectedWorkflowName">No workflow selected</span>
+                <button class="panel-button toggle-button" onclick="toggleView('text')" id="textViewBtn">
+                    <span class="button-icon">📝</span>
+                    TextGen
                 </button>
-                <button class="panel-button console-button" onclick="openConsoleModal()">
-                    <span class="button-icon">📟</span>
-                    View Console
-                </button>
-                <!-- Add other main buttons here -->
             </div>
             
-            <!-- The separator and restart button will be at the bottom -->
+            <div class="panel-separator"></div>
+
+            <div id="imageViewContent" class="view-content active">
+                <div class="main-buttons">
+                    <button class="panel-button" onclick="openWorkflowModal()">
+                        <span class="button-icon">📋</span>
+                        Select Workflow
+                    </button>
+                    <button class="panel-button run-workflow" onclick="runSelectedWorkflow()" disabled>
+                        <span class="button-icon">▶️</span>
+                        Run <span id="selectedWorkflowName">No workflow selected</span>
+                    </button>
+                    <button class="panel-button console-button" onclick="openConsoleModal()">
+                        <span class="button-icon">📟</span>
+                        View Console
+                    </button>
+                    <button class="panel-button health-check" onclick="testConnection()">
+                        <span class="button-icon">🏥</span>
+                        Test Connection
+                    </button>
+                </div>
+            </div>
+
+            <div id="textViewContent" class="view-content">
+                <div class="main-buttons">
+                    <div class="placeholder-message">Text Generation View</div>
+                </div>
+            </div>
+
             <div class="panel-separator"></div>
             <button class="panel-button restart-button" onclick="restartServer()">
                 <span class="button-icon">🔄</span>
@@ -43,11 +67,11 @@
             <span class="status-text">Connected</span>
         </div>
 
-        <div class="container">
+        <div id="imageGalleryView" class="gallery-container active">
             <div class="title-container">
                 <h1 class="title-text">
                     <span class="title-emoji">✨</span>
-                    Personnal image generation gallery
+                    Personal image generation gallery
                     <span class="title-emoji">✨</span>
                 </h1>
             </div>
@@ -72,9 +96,8 @@
                                 Type
                             </button>
                             <button id="reverseOrder" class="btn-sort btn-square" onclick="handleReverseOrder()" title="Reverse Order">
-                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff79c6'%3E%3Cpath d='M7 14l5-5 5 5z'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E" 
-                                     alt="Reverse Order" 
-                                     class="sort-icon">
+                                <span class="sort-icon">⇅</span>
+                                Order
                             </button>
                         </div>
                         <div class="search-container">
@@ -90,6 +113,51 @@
             </div>
             <div id="gallery" class="gallery">
                 <div class="loading">Loading images... ⌛</div>
+            </div>
+        </div>
+
+        <div id="textGalleryView" class="gallery-container">
+            <div class="title-container">
+                <h1 class="title-text">
+                    <span class="title-emoji">📝</span>
+                    Text Generation Gallery
+                    <span class="title-emoji">📝</span>
+                </h1>
+            </div>
+            <div class="sorting-controls">
+                <div class="controls-container">
+                    <div class="top-controls">
+                        <div class="sort-buttons">
+                            <button class="btn-sort active" data-sort="date-desc" onclick="handleTextSortClick(this)">
+                                <span class="sort-icon">🕒</span>
+                                Newest
+                            </button>
+                            <button class="btn-sort" data-sort="name-asc" onclick="handleTextSortClick(this)">
+                                <span class="sort-icon">📝</span>
+                                Name
+                            </button>
+                            <button class="btn-sort" data-sort="size-desc" onclick="handleTextSortClick(this)">
+                                <span class="sort-icon">📊</span>
+                                Size
+                            </button>
+                            <button id="textReverseOrder" class="btn-sort btn-square" onclick="handleTextReverseOrder()" title="Reverse Order">
+                                <span class="sort-icon">⇅</span>
+                                Order
+                            </button>
+                        </div>
+                        <div class="search-container">
+                            <input type="text" 
+                                   id="textSearchInput" 
+                                   class="search-input" 
+                                   placeholder="Search text files..."
+                                   onkeyup="handleTextSearch(event)">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="textGallery" class="gallery">
+                <div class="loading">Loading text files... ⌛</div>
             </div>
         </div>
     </div>
@@ -211,7 +279,7 @@
                         <option value="">Loading folders...</option>
                     </select>
                     <button class="browse-button" onclick="openFolderBrowser()">
-                        <span class="button-icon">📂</span>
+                        <span class="button-icon"></span>
                         Browse
                     </button>
                 </div>
@@ -228,11 +296,6 @@
             </div>
         </div>
     </div>
-
-    <button class="btn-sort" onclick="openWorkflowModal()">
-        <span class="sort-icon">🔄</span>
-        Run Workflow
-    </button>
 
     <div id="consoleModal" class="modal console-modal">
         <div class="modal-content">

@@ -1,28 +1,24 @@
-// State management
 let cachedImages = [];
 let displayedImages = [];
+let cachedTextFiles = [];
+let displayedTextFiles = [];
 let selectedImages = new Set();
 let lastSelectedIndex = -1;
 let currentImageIndex = 0;
 let lastUpdateTime = 0;
 let isReversed = false;
 let currentSortCriteria = 'date-desc';
+let textSortCriteria = 'date-desc';
+let isTextReversed = false;
 let serverConnected = true;
 let preventSingleClick = false;
 let clickTimer = null;
-let selectionStartIndex = -1;  // Track the start of the current selection
-let isSelecting = false;      // Track if we're in a selection process
+let selectionStartIndex = -1;
+let isSelecting = false;
 let newImages = new Set();
 let lastImageCount = 0;
+let selectedWorkflowPath = null;
 
-// Constants
-const UPDATE_INTERVAL = 10000;
-const DOUBLE_CLICK_DELAY = 300;
-const STORAGE_KEY = 'gallery_images';
-const STORAGE_VERSION = '1.0';  // Increment this when storage format changes
-const MAX_CACHE_AGE = 1000 * 60 * 60 * 24;  // 24 hours in milliseconds
-
-// Sort functions
 const sortFunctions = {
     'date-desc': (a, b) => new Date(b.date) - new Date(a.date),
     'name-asc': (a, b) => a.name.localeCompare(b.name),
@@ -38,7 +34,234 @@ const sortFunctions = {
     }
 };
 
-// Image handling functions
+document.addEventListener('DOMContentLoaded', async () => {
+    // Set initial view based on saved preference
+    const preferredView = localStorage.getItem('preferredView') || 'image';
+    
+    // Initialize sort buttons
+    const imageSortBtn = document.querySelector(`[data-sort="${currentSortCriteria}"]`);
+    if (imageSortBtn) imageSortBtn.classList.add('active');
+    
+    const textSortBtn = document.querySelector(`#textGalleryView [data-sort="${textSortCriteria}"]`);
+    if (textSortBtn) textSortBtn.classList.add('active');
+    
+    // Load initial content
+    if (preferredView === 'image') {
+        await loadImages(true);
+    } else {
+        await loadTextFiles(true);
+    }
+    
+    toggleView(preferredView);
+    
+    // Start periodic refresh
+    setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            const currentView = localStorage.getItem('preferredView') || 'image';
+            if (currentView === 'image') {
+                loadImages();
+            } else {
+                loadTextFiles();
+            }
+        }
+    }, UPDATE_INTERVAL);
+    
+    // Add click handler for workflow modal close
+    document.getElementById('workflowModal').addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+            closeWorkflowModal();
+        }
+    });
+    
+    // Initialize side panel
+    initializeSidePanel();
+
+    // Add click handlers for all modals
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', handleModalClick);
+    });
+});
+
+function toggleView(viewType) {
+    const imageGalleryView = document.getElementById('imageGalleryView');
+    const textGalleryView = document.getElementById('textGalleryView');
+    const imageBtn = document.getElementById('imageViewBtn');
+    const textBtn = document.getElementById('textViewBtn');
+    
+    if (viewType === 'image') {
+        imageGalleryView.classList.add('active');
+        textGalleryView.classList.remove('active');
+        imageBtn.classList.add('active');
+        textBtn.classList.remove('active');
+        loadImages(true);  // Force reload images
+    } else {
+        imageGalleryView.classList.remove('active');
+        textGalleryView.classList.add('active');
+        imageBtn.classList.remove('active');
+        textBtn.classList.add('active');
+        loadTextFiles(true);  // Force reload text files
+    }
+    
+    localStorage.setItem('preferredView', viewType);
+}
+
+async function sortAndDisplayTextFiles(clearGallery = false) {
+    const gallery = document.getElementById('textGallery');
+    if (!gallery) return;
+
+    const filesToSort = [...displayedTextFiles];
+    
+    if (!filesToSort.length) {
+        gallery.innerHTML = '<div class="gallery-message">No text files found in the output directory</div>';
+        return;
+    }
+
+    // Sort files
+    const sortFn = sortFunctions[textSortCriteria];
+    if (sortFn) {
+        filesToSort.sort(sortFn);
+    }
+
+    if (isTextReversed) {
+        filesToSort.reverse();
+    }
+
+    // Update display
+    if (clearGallery) {
+        gallery.innerHTML = '';
+        filesToSort.forEach((file, index) => {
+            const card = createTextCard(file, index);
+            gallery.appendChild(card);
+        });
+    }
+
+    displayedTextFiles = filesToSort;
+}
+
+function createTextCard(textFile, index) {
+    const formattedName = formatFilename(textFile.name);
+    const formattedDate = formatDate(textFile.date);
+    
+    const card = document.createElement('div');
+    card.className = 'text-card';
+    card.dataset.filePath = textFile.path;
+    card.dataset.index = index;
+    
+    card.innerHTML = `
+        <div class="card-content">
+            <div class="text-preview-container">
+                <pre class="text-preview">${escapeHtml(textFile.preview)}</pre>
+            </div>
+            <div class="text-info">
+                <div class="formatted-filename">${formattedName}</div>
+                <div class="formatted-date">${formattedDate}</div>
+            </div>
+        </div>
+    `;
+
+    // Add click handlers
+    card.addEventListener('click', (event) => handleTextCardClick(event, textFile, card));
+    card.addEventListener('contextmenu', (event) => showContextMenu(event, textFile, card));
+
+    return card;
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+async function loadImages(force = false) {
+    const now = Date.now();
+    if (!force && now - lastUpdateTime < UPDATE_INTERVAL) {
+        return;
+    }
+
+    try {
+        console.log('Loading images...');
+        const response = await fetch('/api/images');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const fetchedImages = await response.json();
+        console.log(`Fetched ${fetchedImages.length} images`);
+        
+        if (force || imagesHaveChanged(cachedImages, fetchedImages)) {
+            cachedImages = fetchedImages;
+            displayedImages = [...fetchedImages];
+            await sortAndDisplayImages(true);
+            lastUpdateTime = now;
+            updateServerStatus(true);
+        }
+    } catch (error) {
+        console.error('Error loading images:', error);
+        updateServerStatus(false);
+    }
+}
+
+async function loadTextFiles(force = false) {
+    const now = Date.now();
+    if (!force && now - lastUpdateTime < UPDATE_INTERVAL) {
+        return;
+    }
+
+    try {
+        console.log('Loading text files...');
+        const response = await fetch('/api/text-files');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const fetchedFiles = await response.json();
+        console.log(`Fetched ${fetchedFiles.length} text files`);
+        
+        if (force || filesHaveChanged(cachedTextFiles, fetchedFiles)) {
+            cachedTextFiles = fetchedFiles;
+            displayedTextFiles = [...fetchedFiles];
+            await sortAndDisplayTextFiles(true);
+            lastUpdateTime = now;
+            updateServerStatus(true);
+        }
+    } catch (error) {
+        console.error('Error loading text files:', error);
+        updateServerStatus(false);
+    }
+}
+
+async function sortAndDisplayImages(clearGallery = false) {
+    const gallery = document.getElementById('gallery');
+    if (!gallery) return;
+
+    const imagesToSort = [...displayedImages];
+    
+    if (!imagesToSort.length) {
+        gallery.innerHTML = '<div class="gallery-message">No images found in the output directory</div>';
+        return;
+    }
+
+    // Sort images
+    const sortFn = sortFunctions[currentSortCriteria];
+    if (sortFn) {
+        imagesToSort.sort(sortFn);
+    }
+
+    if (isReversed) {
+        imagesToSort.reverse();
+    }
+
+    // Update display
+    if (clearGallery) {
+        gallery.innerHTML = '';
+        imagesToSort.forEach((image, index) => {
+            const card = createImageCard(image, index);
+            gallery.appendChild(card);
+        });
+    }
+
+    displayedImages = imagesToSort;
+}
+
 function createImageCard(image, index) {
     const formattedName = formatFilename(image.name);
     const formattedDate = formatDate(image.date);
@@ -51,7 +274,6 @@ function createImageCard(image, index) {
     card.innerHTML = `
         <div class="card-content">
             <div class="image-container">
-                <div class="click-layer"></div>
                 <img class="thumbnail" 
                      src="${image.thumbnail || `/output/${image.path}`}" 
                      alt="${formattedName}">
@@ -64,17 +286,48 @@ function createImageCard(image, index) {
     `;
 
     // Add click handlers
-    const container = card.querySelector('.image-container');
-    container.addEventListener('click', (event) => handleCardClick(event, image, card));
-    container.addEventListener('dblclick', (event) => handleCardDoubleClick(event, image, card));
-
-    // Add context menu event
-    container.addEventListener('contextmenu', (event) => showContextMenu(event, image, card));
+    card.addEventListener('click', (event) => handleCardClick(event, image, card));
+    card.addEventListener('dblclick', (event) => handleCardDoubleClick(event, image, card));
 
     return card;
 }
 
-// Click handlers
+function updateServerStatus(connected) {
+    const statusElement = document.getElementById('serverStatus');
+    if (!statusElement) return;
+    
+    const statusText = statusElement.querySelector('.status-text');
+    if (!statusText) return;
+    
+    serverConnected = connected;
+    
+    if (connected) {
+        statusElement.classList.remove('disconnected');
+        statusText.textContent = 'Connected';
+    } else {
+        statusElement.classList.add('disconnected');
+        statusText.textContent = 'Disconnected';
+    }
+}
+
+function formatFilename(filename) {
+    return filename
+        .replace(/\.[^/.]+$/, '')  // Remove extension
+        .replace(/_/g, ' ')        // Replace underscores with spaces
+        .replace(/(\d+)$/, ' #$1') // Add space before trailing numbers
+        .trim();
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
 function handleCardClick(event, image, card) {
     const currentIndex = parseInt(card.dataset.index);
 
@@ -136,14 +389,60 @@ function handleCardClick(event, image, card) {
 
 function handleCardDoubleClick(event, image, card) {
     event.preventDefault();
-    // Open modal on double click
     openModal(image.path, {
         name: card.querySelector('.formatted-filename').textContent,
         date: card.querySelector('.formatted-date').textContent
     });
 }
 
-// Modal functions
+function clearSelection() {
+    document.querySelectorAll('.image-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    selectedImages.clear();
+    lastSelectedIndex = -1;
+    selectionStartIndex = -1;
+    isSelecting = false;
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const selectionCount = selectedImages.size;
+    const selectionActions = document.getElementById('selectionActions');
+    const countElement = document.querySelector('.selection-count');
+    
+    if (selectionCount > 0) {
+        selectionActions.classList.add('active');
+        countElement.textContent = `(${selectionCount})`;
+    } else {
+        selectionActions.classList.remove('active');
+        countElement.textContent = '';
+    }
+}
+
+function handleSortClick(button) {
+    document.querySelectorAll('.btn-sort').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    button.classList.add('active');
+    currentSortCriteria = button.dataset.sort;
+    sortAndDisplayImages(false);
+}
+
+function handleReverseOrder() {
+    isReversed = !isReversed;
+    sortAndDisplayImages(false);
+}
+
+function handleSearch(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    displayedImages = cachedImages.filter(image => 
+        image.name.toLowerCase().includes(searchTerm)
+    );
+    sortAndDisplayImages(true);
+}
+
 function openModal(imagePath, imageData) {
     const modal = document.getElementById('modal');
     const modalImg = document.getElementById('modal-img');
@@ -157,22 +456,20 @@ function openModal(imagePath, imageData) {
     
     currentImageIndex = parseInt(document.querySelector(`[data-image-path="${imagePath}"]`).dataset.index);
     updateNavButtons();
-
-    // Add escape key handler
-    const escHandler = (e) => {
-        if (e.key === 'Escape') {
-            closeModal();
-            document.removeEventListener('keydown', escHandler);
-        }
-    };
-    document.addEventListener('keydown', escHandler);
 }
 
 function closeModal() {
     document.getElementById('modal').style.display = 'none';
 }
 
-// Navigation functions
+function updateNavButtons() {
+    const prevButton = document.querySelector('.prev-button');
+    const nextButton = document.querySelector('.next-button');
+    
+    if (prevButton) prevButton.style.display = currentImageIndex > 0 ? 'flex' : 'none';
+    if (nextButton) nextButton.style.display = currentImageIndex < displayedImages.length - 1 ? 'flex' : 'none';
+}
+
 function showPrevImage() {
     if (currentImageIndex > 0) {
         currentImageIndex--;
@@ -197,930 +494,47 @@ function showNextImage() {
     }
 }
 
-// Sort and display functions
-function handleSortClick(button) {
-    document.querySelectorAll('.btn-sort').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    button.classList.add('active');
-    currentSortCriteria = button.dataset.sort;
-    sortAndDisplayImages(false);
-    localStorage.setItem('imageSortCriteria', currentSortCriteria);
-}
-
-function handleReverseOrder() {
-    isReversed = !isReversed;
-    sortAndDisplayImages(false);
-}
-
-async function sortAndDisplayImages(clearGallery = false) {
-    const gallery = document.getElementById('gallery');
-    if (!gallery) return;
-
-    const imagesToSort = [...displayedImages];
-    
-    if (!imagesToSort.length) {
-        gallery.innerHTML = '<div class="gallery-message">No images found in the output directory</div>';
-        return;
-    }
-
-    // Sort images
-    const sortFn = sortFunctions[currentSortCriteria];
-    if (sortFn) {
-        imagesToSort.sort(sortFn);
-    }
-
-    if (isReversed) {
-        imagesToSort.reverse();
-    }
-
-    // Update display
-    if (clearGallery) {
-        gallery.innerHTML = '';
-        imagesToSort.forEach((image, index) => {
-            const card = createImageCard(image, index);
-            gallery.appendChild(card);
-        });
-    } else {
-        const fragment = document.createDocumentFragment();
-        imagesToSort.forEach((image, index) => {
-            const existingCard = gallery.querySelector(`[data-image-path="${image.path}"]`);
-            if (existingCard) {
-                existingCard.dataset.index = index;
-                fragment.appendChild(existingCard);
-            } else {
-                const card = createImageCard(image, index);
-                fragment.appendChild(card);
-            }
-        });
-        gallery.innerHTML = '';
-        gallery.appendChild(fragment);
-    }
-
-    displayedImages = imagesToSort;
-}
-
-// Search function
-function handleSearch(event) {
-    const searchTerm = event.target.value.toLowerCase();
-    displayedImages = cachedImages.filter(image => 
-        image.name.toLowerCase().includes(searchTerm)
-    );
-    sortAndDisplayImages(true);
-}
-
-// Image loading and updates
-async function loadImages(force = false) {
-    const now = Date.now();
-    if (!force && now - lastUpdateTime < UPDATE_INTERVAL) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/images');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const fetchedImages = await response.json();
-        
-        if (force || imagesHaveChanged(cachedImages, fetchedImages)) {
-            // Find new images
-            const newImagesList = fetchedImages.filter(img => 
-                !cachedImages.some(cached => cached.path === img.path)
-            );
-            
-            if (newImagesList.length > 0) {
-                showNewImagesModal(newImagesList);
-            }
-            
-            cachedImages = fetchedImages;
-            
-            if (!document.getElementById('searchInput').value) {
-                displayedImages = [...fetchedImages];
-                await sortAndDisplayImages(true);
-            }
-            
-            lastUpdateTime = now;
-            updateServerStatus(true);
-            
-            // Save to localStorage after successful update
-            saveToLocalStorage();
-        }
-    } catch (error) {
-        console.error('Error loading images:', error);
-        updateServerStatus(false);
-        
-        // Try to load from localStorage if server request fails
-        if (cachedImages.length === 0) {
-            loadFromLocalStorage();
+document.addEventListener('keydown', function(e) {
+    if (document.getElementById('modal').style.display === 'flex') {
+        if (e.key === 'ArrowLeft') {
+            showPrevImage();
+        } else if (e.key === 'ArrowRight') {
+            showNextImage();
+        } else if (e.key === 'Escape') {
+            closeModal();
         }
     }
-}
-
-// Utility functions
-function formatFilename(filename) {
-    return filename
-        .replace(/\.[^/.]+$/, '')
-        .replace(/_/g, ' ')
-        .replace(/(\d+)$/, ' #$1')
-        .trim();
-}
-
-function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function imagesHaveChanged(oldImages, newImages) {
-    if (oldImages.length !== newImages.length) return true;
     
-    const oldMap = new Map(oldImages.map(img => [img.path, img]));
-    const newMap = new Map(newImages.map(img => [img.path, img]));
-    
-    for (const [path, oldImg] of oldMap) {
-        const newImg = newMap.get(path);
-        if (!newImg || oldImg.date !== newImg.date) return true;
-    }
-    
-    return false;
-}
-
-function updateServerStatus(connected) {
-    const statusElement = document.getElementById('serverStatus');
-    if (!statusElement) return;
-    
-    const statusText = statusElement.querySelector('.status-text');
-    if (!statusText) return;
-    
-    serverConnected = connected;
-    
-    if (connected) {
-        statusElement.classList.remove('disconnected');
-        statusText.textContent = 'Connected';
-    } else {
-        statusElement.classList.add('disconnected');
-        statusText.textContent = 'Disconnected';
-    }
-}
-
-// Add these functions for storage management
-function saveToLocalStorage() {
-    const storageData = {
-        version: STORAGE_VERSION,
-        timestamp: Date.now(),
-        images: cachedImages,
-        lastUpdateTime: lastUpdateTime
-    };
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
-    } catch (e) {
-        console.warn('Failed to save to localStorage:', e);
-    }
-}
-
-function loadFromLocalStorage() {
-    try {
-        const data = localStorage.getItem(STORAGE_KEY);
-        if (!data) return false;
-
-        const storageData = JSON.parse(data);
+    if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); // Prevent default browser behavior
         
-        // Check version and age
-        if (storageData.version !== STORAGE_VERSION) {
-            console.log('Cache version mismatch, clearing storage');
-            localStorage.removeItem(STORAGE_KEY);
-            return false;
-        }
-
-        if (Date.now() - storageData.timestamp > MAX_CACHE_AGE) {
-            console.log('Cache too old, clearing storage');
-            localStorage.removeItem(STORAGE_KEY);
-            return false;
-        }
-
-        // Restore data
-        cachedImages = storageData.images;
-        displayedImages = [...cachedImages];
-        lastUpdateTime = storageData.lastUpdateTime;
+        const currentView = localStorage.getItem('preferredView') || 'image';
+        const selectedItems = currentView === 'image' ? selectedImages : selectedTextFiles;
         
-        // Display cached images immediately
-        sortAndDisplayImages(true);
-        return true;
-    } catch (e) {
-        console.warn('Failed to load from localStorage:', e);
-        return false;
-    }
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', async () => {
-    currentSortCriteria = localStorage.getItem('imageSortCriteria') || 'date-desc';
-    
-    const activeButton = document.querySelector(`[data-sort="${currentSortCriteria}"]`);
-    if (activeButton) {
-        activeButton.classList.add('active');
-    }
-
-    // Try to load cached images first
-    const hasCachedData = loadFromLocalStorage();
-    
-    // Always fetch fresh data, but display cached data immediately if available
-    await loadImages(!hasCachedData);
-    
-    // Start periodic refresh
-    setInterval(() => {
-        if (document.visibilityState === 'visible') {
-            loadImages();
+        if (selectedItems.size > 0) {
+            deleteSelected();
+        } else {
+            showToast('No items selected');
         }
-    }, UPDATE_INTERVAL);
+    }
 });
 
-// Keyboard shortcuts
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const allCards = document.querySelectorAll('.image-card');
-        if (selectedImages.size === allCards.length) {
-            clearSelection();
-        } else {
-            allCards.forEach(card => {
-                card.classList.add('selected');
-                selectedImages.add(card.dataset.imagePath);
-            });
-        }
-        updateSelectionUI();
-    } else if (e.key === 'Escape') {
-        clearSelection();
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('modal');
+    if (event.target === modal) {
         closeModal();
     }
 });
 
-// Add this function to clear selection
-function clearSelection() {
-    document.querySelectorAll('.image-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    selectedImages.clear();
-    lastSelectedIndex = -1;
-    selectionStartIndex = -1;
-    isSelecting = false;
-    updateSelectionUI();
-}
-
-// Add this function to update selection UI
-function updateSelectionUI() {
-    const selectionCount = selectedImages.size;
-    const selectionActions = document.getElementById('selectionActions');
-    const countElement = document.querySelector('.selection-count');
-    
-    if (selectionCount > 0) {
-        selectionActions.classList.add('active');
-        countElement.textContent = `(${selectionCount})`;
-        
-        if (selectionStartIndex === -1) {
-            selectionStartIndex = getFirstSelectedIndex();
-            isSelecting = true;
-        }
-    } else {
-        selectionActions.classList.remove('active');
-        countElement.textContent = '';
-        selectionStartIndex = -1;
-        isSelecting = false;
-    }
-
-    // Update delete button state
-    const deleteButton = document.querySelector('.btn-delete-selected');
-    if (deleteButton) {
-        deleteButton.disabled = selectionCount === 0;
-        deleteButton.title = selectionCount === 0 ? 'Select images to delete' : `Delete ${selectionCount} selected image${selectionCount > 1 ? 's' : ''}`;
-    }
-}
-
-// Add click handler to clear selection when clicking outside
-document.addEventListener('click', function(event) {
-    if (!event.target.closest('.image-card') && 
-        !event.target.closest('.selection-actions') &&
-        !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-        clearSelection();
-    }
-});
-
-// Add function to check if any images are selected
-function hasSelectedImages() {
-    return selectedImages.size > 0;
-}
-
-// Add function to get first selected image index
-function getFirstSelectedIndex() {
-    const selectedCard = document.querySelector('.image-card.selected');
-    return selectedCard ? parseInt(selectedCard.dataset.index) : -1;
-}
-
-// Add these functions for handling multiple deletions
-
-async function deleteSelected() {
-    if (selectedImages.size === 0) return;
-
-    const count = selectedImages.size;
-    if (confirm(`Are you sure you want to delete ${count} selected image${count > 1 ? 's' : ''}? This action cannot be undone.`)) {
-        const deletePromises = Array.from(selectedImages).map(imagePath => 
-            fetch(`/api/images/${imagePath}`, {
-                method: 'DELETE'
-            }).then(response => {
-                if (!response.ok) {
-                    throw new Error(`Failed to delete ${imagePath}`);
-                }
-                return imagePath;
-            })
-        );
-
-        try {
-            const results = await Promise.allSettled(deletePromises);
-            
-            // Count successful and failed deletions
-            const successful = results.filter(r => r.status === 'fulfilled').length;
-            const failed = results.filter(r => r.status === 'rejected').length;
-            
-            // Show results
-            if (failed === 0) {
-                showToast(`Successfully deleted ${successful} image${successful > 1 ? 's' : ''}`);
-            } else {
-                showToast(`Deleted ${successful} image${successful > 1 ? 's' : ''}, ${failed} failed`);
-            }
-
-            // Clear selection
-            clearSelection();
-            
-            // Refresh the gallery
-            await loadImages(true);
-        } catch (error) {
-            console.error('Error during batch deletion:', error);
-            showToast('Error deleting selected images');
-        }
-    }
-}
-
-// Add toast notification function
-function showToast(message, duration = 3000) {
-    const toast = document.getElementById('toast');
-    const toastMessage = document.getElementById('toastMessage');
-    
-    if (!toast || !toastMessage) return;
-    
-    toastMessage.textContent = message;
-    toast.classList.add('show');
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, duration);
-}
-
-// Add these functions for context menu handling
-let contextMenuTarget = null;
-
-function showContextMenu(event, image, card) {
-    event.preventDefault();
-    const contextMenu = document.getElementById('contextMenu');
-    contextMenuTarget = { image, card };
-    
-    // Position the menu
-    contextMenu.style.display = 'block';
-    const x = event.clientX;
-    const y = event.clientY;
-    
-    // Adjust position if menu would go off screen
-    const menuRect = contextMenu.getBoundingClientRect();
-    const adjustedX = x + menuRect.width > window.innerWidth ? x - menuRect.width : x;
-    const adjustedY = y + menuRect.height > window.innerHeight ? y - menuRect.height : y;
-    
-    contextMenu.style.left = `${adjustedX}px`;
-    contextMenu.style.top = `${adjustedY}px`;
-}
-
-// Add rename functionality
-function openRenameDialog() {
-    if (!contextMenuTarget) return;
-    
-    const dialog = document.getElementById('renameDialog');
-    const input = document.getElementById('newFilename');
-    const currentName = contextMenuTarget.image.name.replace(/\.[^/.]+$/, '');
-    
-    input.value = currentName;
-    dialog.style.display = 'block';
-    input.select();
-
-    // Add escape key handler
-    const escHandler = (e) => {
-        if (e.key === 'Escape') {
-            closeRenameDialog();
-            document.removeEventListener('keydown', escHandler);
-        }
-    };
-    document.addEventListener('keydown', escHandler);
-}
-
-async function confirmRename() {
-    if (!contextMenuTarget) return;
-    
-    const newName = document.getElementById('newFilename').value;
-    const ext = contextMenuTarget.image.name.split('.').pop();
-    const fullNewName = `${newName}.${ext}`;
-    
-    try {
-        const response = await fetch(`/api/rename/${contextMenuTarget.image.path}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ newName: fullNewName })
-        });
-        
-        if (response.ok) {
-            showToast(`Renamed to ${fullNewName}`);
-            await loadImages(true);
-        } else {
-            showToast('Failed to rename file');
-        }
-    } catch (error) {
-        console.error('Error renaming file:', error);
-        showToast('Error renaming file');
-    }
-    
-    closeRenameDialog();
-}
-
-function closeRenameDialog() {
-    document.getElementById('renameDialog').style.display = 'none';
-    contextMenuTarget = null;
-}
-
-// Add click handler to close context menu when clicking outside
-document.addEventListener('click', function(event) {
-    const contextMenu = document.getElementById('contextMenu');
-    if (!event.target.closest('.context-menu')) {
-        contextMenu.style.display = 'none';
-        contextMenuTarget = null;
-    }
-});
-
-// Add these functions to handle the new images modal
-function showNewImagesModal(newImagesList) {
-    const modal = document.getElementById('newImagesModal');
-    const grid = modal.querySelector('.new-images-grid');
-    grid.innerHTML = '';
-    
-    newImagesList.forEach(image => {
-        const card = createNewImageCard(image);
-        grid.appendChild(card);
-        newImages.add(image.path);
-    });
-    
-    modal.style.display = 'flex';
-    showToast(`${newImagesList.length} new image${newImagesList.length > 1 ? 's' : ''} added`);
-
-    // Add escape key handler
-    const escHandler = (e) => {
-        if (e.key === 'Escape') {
-            closeNewImagesModal();
-            document.removeEventListener('keydown', escHandler);
-        }
-    };
-    document.addEventListener('keydown', escHandler);
-}
-
-function createNewImageCard(image) {
-    const card = document.createElement('div');
-    card.className = 'new-image-card';
-    card.dataset.imagePath = image.path;
-    
-    card.innerHTML = `
-        <img src="${image.thumbnail || `/output/${image.path}`}" alt="${image.name}">
-        <div class="image-info">
-            <div class="formatted-filename">${formatFilename(image.name)}</div>
-            <div class="formatted-date">${formatDate(image.date)}</div>
-        </div>
-    `;
-    
-    card.addEventListener('click', () => {
-        card.classList.toggle('selected');
-    });
-    
-    return card;
-}
-
-function closeNewImagesModal() {
-    document.getElementById('newImagesModal').style.display = 'none';
-    newImages.clear();
-}
-
-function selectAllNew() {
-    const cards = document.querySelectorAll('.new-image-card');
-    cards.forEach(card => card.classList.add('selected'));
-}
-
-async function downloadAllNew() {
-    const selectedCards = document.querySelectorAll('.new-image-card.selected');
-    for (const card of selectedCards) {
-        const link = document.createElement('a');
-        link.href = `/output/${card.dataset.imagePath}`;
-        link.download = card.querySelector('.formatted-filename').textContent;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        await new Promise(resolve => setTimeout(resolve, 100)); // Delay between downloads
-    }
-}
-
-async function deleteAllNew() {
-    const selectedCards = document.querySelectorAll('.new-image-card.selected');
-    if (selectedCards.length === 0) return;
-    
-    if (confirm(`Delete ${selectedCards.length} selected image${selectedCards.length > 1 ? 's' : ''}?`)) {
-        for (const card of selectedCards) {
-            try {
-                const response = await fetch(`/api/images/${card.dataset.imagePath}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    card.remove();
-                    newImages.delete(card.dataset.imagePath);
-                }
-            } catch (error) {
-                console.error('Error deleting image:', error);
-            }
-        }
-        
-        await loadImages(true);
-        
-        if (document.querySelector('.new-images-grid').children.length === 0) {
-            closeNewImagesModal();
-        }
-    }
-}
-
-// Add cleanup function for old cache entries
-function cleanupOldCacheEntries() {
-    try {
-        const keys = Object.keys(localStorage);
-        const now = Date.now();
-        
-        keys.forEach(key => {
-            if (key.startsWith(STORAGE_KEY)) {
-                try {
-                    const data = JSON.parse(localStorage.getItem(key));
-                    if (now - data.timestamp > MAX_CACHE_AGE) {
-                        localStorage.removeItem(key);
-                    }
-                } catch (e) {
-                    // If the data is invalid, remove it
-                    localStorage.removeItem(key);
-                }
-            }
-        });
-    } catch (e) {
-        console.warn('Error cleaning up cache:', e);
-    }
-}
-
-// Add periodic cache cleanup
-setInterval(cleanupOldCacheEntries, 1000 * 60 * 60); // Check every hour
-
-// Add these functions for modal handling
-function handleModalClick(event) {
-    const modals = [
-        { element: document.getElementById('modal'), close: closeModal },
-        { element: document.getElementById('newImagesModal'), close: closeNewImagesModal },
-        { element: document.getElementById('renameDialog'), close: closeRenameDialog },
-        { element: document.getElementById('consoleModal'), close: closeConsoleModal },
-        { element: document.getElementById('folderBrowserModal'), close: closeFolderBrowser }
-    ];
-
-    modals.forEach(({ element, close }) => {
-        if (event.target === element) {
-            close();
-        }
-    });
-}
-
-// Update the modal initialization
-document.addEventListener('DOMContentLoaded', function() {
-    // ... existing initialization code ...
-
-    // Add click handlers to all modals
-    const modals = [
-        document.getElementById('modal'),
-        document.getElementById('newImagesModal'),
-        document.getElementById('renameDialog'),
-        document.getElementById('consoleModal'),
-        document.getElementById('folderBrowserModal')
-    ];
-
-    modals.forEach(modal => {
-        if (modal) {
-            modal.addEventListener('click', handleModalClick);
-        }
-    });
-
-    // Prevent clicks inside modal content from closing the modal
-    const modalContents = document.querySelectorAll('.modal-content, .dialog-content');
-    modalContents.forEach(content => {
-        content.addEventListener('click', (e) => e.stopPropagation());
-    });
-});
-
-// Update the workflow handling functions
-let selectedWorkflowPath = null;
-
+// Add these workflow-related functions
 async function openWorkflowModal() {
     const modal = document.getElementById('workflowModal');
-    const list = modal.querySelector('.workflow-list');
-    list.innerHTML = '<div class="loading">Loading workflows...</div>';
     modal.style.display = 'flex';
     
-    try {
-        const response = await fetch('/api/workflows');
-        if (!response.ok) throw new Error('Failed to fetch workflows');
-        
-        const workflows = await response.json();
-        list.innerHTML = '';
-        
-        workflows.forEach(workflow => {
-            const item = document.createElement('div');
-            item.className = 'workflow-item';
-            if (workflow.path === selectedWorkflowPath) {
-                item.classList.add('selected');
-            }
-            
-            item.innerHTML = `
-                <span class="workflow-icon">📄</span>
-                <span class="workflow-name">${workflow.name}</span>
-            `;
-            
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.workflow-item').forEach(i => i.classList.remove('selected'));
-                item.classList.add('selected');
-                selectedWorkflowPath = workflow.path;
-                document.getElementById('selectedWorkflowName').textContent = workflow.name;
-                document.querySelector('.run-workflow').disabled = false;
-                closeWorkflowModal();
-            });
-            
-            list.appendChild(item);
-        });
-        
-    } catch (error) {
-        console.error('Error loading workflows:', error);
-        list.innerHTML = '<div class="error">Failed to load workflows</div>';
-    }
+    // Load folders first
+    await loadWorkflowFolders();
 }
 
-async function runSelectedWorkflow() {
-    if (!selectedWorkflowPath) {
-        showToast('Please select a workflow first');
-        return;
-    }
-    
-    const runButton = document.querySelector('.run-workflow');
-    const originalText = runButton.innerHTML;
-    runButton.innerHTML = '<span class="button-icon">⌛</span>Running...';
-    runButton.disabled = true;
-    
-    try {
-        const response = await fetch(`/api/run-workflow/${encodeURIComponent(selectedWorkflowPath)}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            showToast('Workflow started successfully');
-        } else {
-            showToast('Failed to run workflow');
-            console.error('Workflow error:', result.error);
-        }
-    } catch (error) {
-        console.error('Error running workflow:', error);
-        showToast('Error running workflow');
-    } finally {
-        runButton.disabled = false;
-        runButton.innerHTML = originalText;
-    }
-}
-
-function closeWorkflowModal() {
-    document.getElementById('workflowModal').style.display = 'none';
-}
-
-// Add mobile menu toggle functionality
-function toggleSidePanel() {
-    const sidePanel = document.querySelector('.side-panel');
-    sidePanel.classList.toggle('open');
-}
-
-// Add mobile menu button to DOM when viewport is small
-function addMobileMenuButton() {
-    if (window.innerWidth <= 576 && !document.querySelector('.menu-toggle')) {
-        const menuButton = document.createElement('button');
-        menuButton.className = 'menu-toggle';
-        menuButton.innerHTML = '☰';
-        menuButton.onclick = toggleSidePanel;
-        document.body.appendChild(menuButton);
-    }
-}
-
-// Listen for window resize
-window.addEventListener('resize', addMobileMenuButton);
-// Initial check
-document.addEventListener('DOMContentLoaded', addMobileMenuButton);
-
-// Add these functions for side panel behavior
-function initializeSidePanel() {
-    const body = document.body;
-    
-    // Create trigger area
-    const trigger = document.createElement('div');
-    trigger.className = 'side-panel-trigger';
-    body.appendChild(trigger);
-    
-    // Create pin button
-    const sidePanel = document.querySelector('.side-panel');
-    const pinButton = document.createElement('button');
-    pinButton.className = 'pin-button';
-    pinButton.innerHTML = '📌';
-    pinButton.title = 'Pin panel';
-    sidePanel.appendChild(pinButton);
-    
-    // Add event listeners
-    trigger.addEventListener('mouseenter', showPanel);
-    sidePanel.addEventListener('mouseleave', hidePanel);
-    pinButton.addEventListener('click', togglePin);
-    
-    // Load pinned state from localStorage
-    const isPinned = localStorage.getItem('sidePanelPinned') === 'true';
-    if (isPinned) {
-        sidePanel.classList.add('visible', 'pinned');
-        pinButton.classList.add('pinned');
-        document.querySelector('.main-content').classList.add('shifted');
-    }
-}
-
-function showPanel() {
-    const sidePanel = document.querySelector('.side-panel');
-    const mainContent = document.querySelector('.main-content');
-    
-    if (!sidePanel.classList.contains('pinned')) {
-        sidePanel.classList.add('visible');
-        mainContent.classList.add('shifted');
-    }
-}
-
-function hidePanel() {
-    const sidePanel = document.querySelector('.side-panel');
-    const mainContent = document.querySelector('.main-content');
-    
-    if (!sidePanel.classList.contains('pinned')) {
-        sidePanel.classList.remove('visible');
-        mainContent.classList.remove('shifted');
-    }
-}
-
-function togglePin() {
-    const sidePanel = document.querySelector('.side-panel');
-    const pinButton = document.querySelector('.pin-button');
-    const mainContent = document.querySelector('.main-content');
-    
-    if (sidePanel.classList.contains('pinned')) {
-        sidePanel.classList.remove('pinned');
-        pinButton.classList.remove('pinned');
-        localStorage.setItem('sidePanelPinned', 'false');
-        hidePanel();
-    } else {
-        sidePanel.classList.add('pinned');
-        pinButton.classList.add('pinned');
-        localStorage.setItem('sidePanelPinned', 'true');
-    }
-}
-
-// Update the DOMContentLoaded event listener
-document.addEventListener('DOMContentLoaded', function() {
-    // Existing initialization code...
-    
-    // Initialize side panel
-    initializeSidePanel();
-});
-
-// Add this function near the other server-related functions
-async function restartServer() {
-    if (!confirm('Are you sure you want to restart the gallery server?')) {
-        return;
-    }
-
-    const button = document.querySelector('.restart-button');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<span class="button-icon">⌛</span>Restarting...';
-    button.disabled = true;
-
-    try {
-        const response = await fetch('/api/restart');
-        if (response.ok) {
-            showToast('Server is restarting...');
-            
-            // Wait a moment before starting reconnection attempts
-            setTimeout(async () => {
-                let attempts = 0;
-                const maxAttempts = 30;
-                const checkServer = async () => {
-                    try {
-                        const response = await fetch('/api/images');
-                        if (response.ok) {
-                            showToast('Server restarted successfully');
-                            window.location.reload();
-                            return;
-                        }
-                    } catch (e) {
-                        // Server not ready yet
-                    }
-                    
-                    attempts++;
-                    if (attempts < maxAttempts) {
-                        setTimeout(checkServer, 1000);
-                    } else {
-                        showToast('Server restart timed out. Please refresh manually.');
-                        button.innerHTML = originalText;
-                        button.disabled = false;
-                    }
-                };
-                
-                checkServer();
-            }, 2000);
-            
-        } else {
-            throw new Error('Failed to restart server');
-        }
-    } catch (error) {
-        console.error('Error restarting server:', error);
-        showToast('Failed to restart server');
-        button.innerHTML = originalText;
-        button.disabled = false;
-    }
-}
-
-// Add these console-related functions
-let autoScroll = true;
-let consoleEventSource = null;
-
-function openConsoleModal() {
-    const modal = document.getElementById('consoleModal');
-    modal.style.display = 'flex';
-    
-    // Start listening for console updates
-    if (!consoleEventSource) {
-        consoleEventSource = new EventSource('/api/console');
-        consoleEventSource.onmessage = function(event) {
-            const consoleOutput = document.getElementById('consoleOutput');
-            const data = JSON.parse(event.data);
-            
-            // Create new log entry
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${data.level.toLowerCase()}`;
-            entry.textContent = `[${data.time}] ${data.message}`;
-            
-            consoleOutput.appendChild(entry);
-            
-            // Auto-scroll if enabled
-            if (autoScroll) {
-                consoleOutput.scrollTop = consoleOutput.scrollHeight;
-            }
-        };
-    }
-}
-
-function closeConsoleModal() {
-    const modal = document.getElementById('consoleModal');
-    modal.style.display = 'none';
-    
-    // Close EventSource connection
-    if (consoleEventSource) {
-        consoleEventSource.close();
-        consoleEventSource = null;
-    }
-}
-
-function clearConsole() {
-    const consoleOutput = document.getElementById('consoleOutput');
-    consoleOutput.innerHTML = '';
-}
-
-function toggleAutoScroll() {
-    autoScroll = !autoScroll;
-    const button = document.getElementById('autoScrollButton');
-    button.innerHTML = `<span class="button-icon">📜</span>Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
-}
-
-// Add these functions for folder handling
 async function loadWorkflowFolders() {
     try {
         const response = await fetch('/api/workflow-folders');
@@ -1198,118 +612,555 @@ async function loadWorkflowsFromFolder(folderPath) {
     }
 }
 
-// Update the openWorkflowModal function
-async function openWorkflowModal() {
-    const modal = document.getElementById('workflowModal');
-    modal.style.display = 'flex';
+async function runSelectedWorkflow() {
+    if (!selectedWorkflowPath) {
+        showToast('Please select a workflow first');
+        return;
+    }
     
-    // Load folders first
-    await loadWorkflowFolders();
-}
-
-// Add these folder browser functions
-let currentBrowsePath = null;
-let showAllFiles = false;
-
-async function openFolderBrowser() {
-    const modal = document.getElementById('folderBrowserModal');
-    modal.style.display = 'flex';
-    
-    // Reset show all checkbox
-    document.getElementById('showAllFiles').checked = showAllFiles;
-    
-    // Start from comfy_dir
-    await browsePath(null);
-}
-
-async function browsePath(path) {
-    const folderList = document.querySelector('.folder-list');
-    folderList.innerHTML = '<div class="loading">Loading folders...</div>';
+    const runButton = document.querySelector('.run-workflow');
+    const originalText = runButton.innerHTML;
+    runButton.innerHTML = '<span class="button-icon"></span>Running...';
+    runButton.disabled = true;
     
     try {
-        const headers = {
-            'X-Show-All': showAllFiles.toString()
-        };
-        if (path) {
-            headers['X-Current-Path'] = path;
+        const response = await fetch(`/api/run-workflow/${encodeURIComponent(selectedWorkflowPath)}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Workflow started successfully');
+        } else {
+            showToast('Failed to run workflow');
+            console.error('Workflow error:', result.error);
         }
-        
-        const response = await fetch('/api/browse-folders', { headers });
-        if (!response.ok) throw new Error('Failed to browse folders');
-        
-        const data = await response.json();
-        currentBrowsePath = data.current_path;
-        
-        // Update current path display
-        document.getElementById('currentPath').textContent = data.current_path;
-        
-        // Update select button state - enable if current folder has JSON files
-        document.getElementById('selectFolderButton').disabled = !data.items.some(item => 
-            !item.is_file && item.has_json && item.name !== '..'
-        );
-        
-        // Populate folder list
-        folderList.innerHTML = '';
-        data.items.forEach(item => {
-            const element = document.createElement('div');
-            element.className = `folder-item${item.is_file ? ' file' : ''}`;
-            
-            let icon, badge = '';
-            if (item.name === '..') {
-                icon = '⬆️';
-            } else if (item.is_file) {
-                icon = item.is_json ? '📄' : '📝';
-                badge = `<span class="item-badge file-badge">${item.is_json ? 'JSON' : 'File'}</span>`;
-            } else {
-                icon = '📁';
-                if (item.has_json) {
-                    badge = '<span class="item-badge">Contains JSON</span>';
-                }
-            }
-            
-            element.innerHTML = `
-                <span class="item-icon">${icon}</span>
-                <span class="item-name">${item.name}</span>
-                ${badge}
-            `;
-            
-            if (!item.is_file || item.is_json) {
-                element.addEventListener('click', () => browsePath(item.path));
-            }
-            
-            folderList.appendChild(element);
-        });
-        
     } catch (error) {
-        console.error('Error browsing folders:', error);
-        folderList.innerHTML = '<div class="error">Failed to load folders</div>';
+        console.error('Error running workflow:', error);
+        showToast('Error running workflow');
+    } finally {
+        runButton.disabled = false;
+        runButton.innerHTML = originalText;
     }
 }
 
-function refreshBrowser() {
-    showAllFiles = document.getElementById('showAllFiles').checked;
-    browsePath(currentBrowsePath);
+function closeWorkflowModal() {
+    document.getElementById('workflowModal').style.display = 'none';
+}
+
+// Add this function to show toast messages
+function showToast(message, duration = 3000) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    if (!toast || !toastMessage) return;
+    
+    toastMessage.textContent = message;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
+}
+
+// Add these functions for side panel behavior
+function initializeSidePanel() {
+    const body = document.body;
+    
+    // Create trigger area
+    const trigger = document.createElement('div');
+    trigger.className = 'side-panel-trigger';
+    body.appendChild(trigger);
+    
+    // Add event listeners
+    trigger.addEventListener('mouseenter', showPanel);
+    const sidePanel = document.querySelector('.side-panel');
+    sidePanel.addEventListener('mouseleave', hidePanel);
+    
+    // Load pinned state from localStorage
+    const isPinned = localStorage.getItem('sidePanelPinned') === 'true';
+    if (isPinned) {
+        sidePanel.classList.add('pinned');
+        document.querySelector('.pin-button').classList.add('pinned');
+        document.querySelector('.main-content').classList.add('shifted');
+    }
+}
+
+function showPanel() {
+    const sidePanel = document.querySelector('.side-panel');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (!sidePanel.classList.contains('pinned')) {
+        sidePanel.classList.add('visible');
+        mainContent.classList.add('shifted');
+    }
+}
+
+function hidePanel() {
+    const sidePanel = document.querySelector('.side-panel');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (!sidePanel.classList.contains('pinned')) {
+        sidePanel.classList.remove('visible');
+        mainContent.classList.remove('shifted');
+    }
+}
+
+function togglePin() {
+    const sidePanel = document.querySelector('.side-panel');
+    const pinButton = document.querySelector('.pin-button');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (sidePanel.classList.contains('pinned')) {
+        sidePanel.classList.remove('pinned');
+        pinButton.classList.remove('pinned');
+        localStorage.setItem('sidePanelPinned', 'false');
+        hidePanel();
+    } else {
+        sidePanel.classList.add('pinned');
+        pinButton.classList.add('pinned');
+        localStorage.setItem('sidePanelPinned', 'true');
+    }
+}
+
+// Add these functions for the side panel buttons
+
+// Console button handler
+function openConsoleModal() {
+    const modal = document.getElementById('consoleModal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    
+    // Start listening for console updates
+    if (!consoleEventSource) {
+        consoleEventSource = new EventSource('/api/console');
+        consoleEventSource.onmessage = function(event) {
+            const consoleOutput = document.getElementById('consoleOutput');
+            if (!consoleOutput) return;
+            
+            const data = JSON.parse(event.data);
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${data.level.toLowerCase()}`;
+            entry.textContent = `[${data.time}] ${data.message}`;
+            
+            consoleOutput.appendChild(entry);
+            
+            if (autoScroll) {
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            }
+        };
+    }
+    
+    // Add click outside listener
+    modal.addEventListener('click', function(event) {
+        if (event.target === modal) {
+            closeConsoleModal();
+        }
+    });
+}
+
+function closeConsoleModal() {
+    const modal = document.getElementById('consoleModal');
+    if (!modal) return;
+    
+    modal.style.display = 'none';
+    
+    if (consoleEventSource) {
+        consoleEventSource.close();
+        consoleEventSource = null;
+    }
+}
+
+function clearConsole() {
+    const consoleOutput = document.getElementById('consoleOutput');
+    consoleOutput.innerHTML = '';
+}
+
+let autoScroll = true;
+function toggleAutoScroll() {
+    autoScroll = !autoScroll;
+    const button = document.getElementById('autoScrollButton');
+    button.innerHTML = `<span class="button-icon">📜</span>Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+}
+
+// Test Connection button handler
+async function testConnection() {
+    const button = document.querySelector('.health-check');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="button-icon">⌛</span>Testing...';
+    button.disabled = true;
+
+    const results = {
+        api: false,
+        ui: false,
+        events: false
+    };
+
+    try {
+        // Test API response time
+        const apiStart = performance.now();
+        const apiResponse = await fetch('/api/images');
+        const apiEnd = performance.now();
+        results.api = {
+            status: apiResponse.ok,
+            time: Math.round(apiEnd - apiStart)
+        };
+
+        // Test UI responsiveness
+        const uiStart = performance.now();
+        await new Promise(resolve => {
+            requestAnimationFrame(() => {
+                const uiEnd = performance.now();
+                results.ui = {
+                    status: true,
+                    time: Math.round(uiEnd - uiStart)
+                };
+                resolve();
+            });
+        });
+
+        // Test EventSource connection
+        results.events = await testEventSource();
+
+        // Show results
+        showConnectionResults(results);
+    } catch (error) {
+        console.error('Connection test error:', error);
+        showToast('Connection test failed');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Restart Server button handler
+async function restartServer() {
+    if (!confirm('Are you sure you want to restart the gallery server?')) {
+        return;
+    }
+
+    const button = document.querySelector('.restart-button');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<span class="button-icon">⌛</span>Restarting...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch('/api/restart');
+        if (response.ok) {
+            showToast('Server is restarting...');
+            
+            // Wait a moment before starting reconnection attempts
+            setTimeout(async () => {
+                let attempts = 0;
+                const maxAttempts = 30;
+                const checkServer = async () => {
+                    try {
+                        const response = await fetch('/api/images');
+                        if (response.ok) {
+                            showToast('Server restarted successfully');
+                            window.location.reload();
+                            return;
+                        }
+                    } catch (e) {
+                        // Server not ready yet
+                    }
+                    
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        setTimeout(checkServer, 1000);
+                    } else {
+                        showToast('Server restart timed out. Please refresh manually.');
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    }
+                };
+                
+                checkServer();
+            }, 2000);
+            
+        } else {
+            throw new Error('Failed to restart server');
+        }
+    } catch (error) {
+        console.error('Error restarting server:', error);
+        showToast('Failed to restart server');
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Add these helper functions
+let consoleEventSource = null;
+
+function testEventSource() {
+    return new Promise((resolve) => {
+        const start = performance.now();
+        const testSource = new EventSource('/events');
+        let received = false;
+
+        const timeout = setTimeout(() => {
+            testSource.close();
+            resolve({
+                status: false,
+                time: 0
+            });
+        }, 5000);
+
+        testSource.onopen = () => {
+            console.log('EventSource connection opened');
+        };
+
+        testSource.onmessage = (event) => {
+            console.log('EventSource message received:', event.data);
+            if (!received) {
+                received = true;
+                const end = performance.now();
+                clearTimeout(timeout);
+                testSource.close();
+                resolve({
+                    status: true,
+                    time: Math.round(end - start)
+                });
+            }
+        };
+
+        testSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            clearTimeout(timeout);
+            testSource.close();
+            resolve({
+                status: false,
+                time: 0
+            });
+        };
+    });
+}
+
+function showConnectionResults(results) {
+    const modal = document.createElement('div');
+    modal.className = 'modal connection-results-modal';
+    
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    
+    content.innerHTML = `
+        <button class="close-modal" onclick="this.closest('.modal').remove()">×</button>
+        <h3 class="modal-title">Connection Test Results</h3>
+        
+        <div class="test-results">
+            <div class="test-item ${results.api.status ? 'success' : 'failure'}">
+                <div class="test-header">
+                    <span class="test-icon">${results.api.status ? '✅' : '❌'}</span>
+                    <span class="test-name">API Connection</span>
+                </div>
+                <div class="test-details">
+                    Response Time: ${results.api.time}ms
+                </div>
+            </div>
+            
+            <div class="test-item ${results.ui.status ? 'success' : 'failure'}">
+                <div class="test-header">
+                    <span class="test-icon">${results.ui.status ? '✅' : '❌'}</span>
+                    <span class="test-name">UI Responsiveness</span>
+                </div>
+                <div class="test-details">
+                    Frame Time: ${results.ui.time}ms
+                </div>
+            </div>
+            
+            <div class="test-item ${results.events.status ? 'success' : 'failure'}">
+                <div class="test-header">
+                    <span class="test-icon">${results.events.status ? '✅' : '❌'}</span>
+                    <span class="test-name">Real-time Events</span>
+                </div>
+                <div class="test-details">
+                    ${results.events.status ? `Connection Time: ${results.events.time}ms` : 'Connection Failed'}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+}
+
+// Add this function to handle modal clicks
+function handleModalClick(event) {
+    const modals = [
+        { id: 'modal', close: closeModal },
+        { id: 'workflowModal', close: closeWorkflowModal },
+        { id: 'consoleModal', close: closeConsoleModal },
+        { id: 'folderBrowserModal', close: closeFolderBrowser },
+        { id: 'newImagesModal', close: closeNewImagesModal },
+        { id: 'deleteDialog', close: closeDeleteDialog },
+        { id: 'renameDialog', close: closeRenameDialog }
+    ];
+
+    modals.forEach(({ id, close }) => {
+        const modal = document.getElementById(id);
+        if (event.target === modal) {
+            close();
+        }
+    });
+}
+
+// Add text file selection handling
+let selectedTextFiles = new Set();
+
+function handleTextCardClick(event, textFile, card) {
+    const currentIndex = parseInt(card.dataset.index);
+
+    if (event.ctrlKey || event.metaKey) {
+        // Multi-select with Ctrl/Cmd
+        card.classList.toggle('selected');
+        if (card.classList.contains('selected')) {
+            selectedTextFiles.add(textFile.path);
+        } else {
+            selectedTextFiles.delete(textFile.path);
+        }
+    } else if (event.shiftKey) {
+        // Range select with Shift
+        const start = Math.min(selectionStartIndex, currentIndex);
+        const end = Math.max(selectionStartIndex, currentIndex);
+
+        const cards = Array.from(document.querySelectorAll('.text-card'));
+        cards.forEach((c, i) => {
+            if (i >= start && i <= end) {
+                c.classList.add('selected');
+                selectedTextFiles.add(c.dataset.filePath);
+            } else {
+                c.classList.remove('selected');
+                selectedTextFiles.delete(c.dataset.filePath);
+            }
+        });
+    } else {
+        // Single select
+        clearTextSelection();
+        card.classList.add('selected');
+        selectedTextFiles.add(textFile.path);
+        selectionStartIndex = currentIndex;
+    }
+
+    updateSelectionUI();
+}
+
+function clearTextSelection() {
+    document.querySelectorAll('.text-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    selectedTextFiles.clear();
+    selectionStartIndex = -1;
+    updateSelectionUI();
+}
+
+// Update the updateSelectionUI function to handle both types
+function updateSelectionUI() {
+    const currentView = localStorage.getItem('preferredView') || 'image';
+    const selectedItems = currentView === 'image' ? selectedImages : selectedTextFiles;
+    
+    const selectionCount = selectedItems.size;
+    const selectionActions = document.getElementById('selectionActions');
+    const countElement = document.querySelector('.selection-count');
+    
+    if (selectionCount > 0) {
+        selectionActions.classList.add('active');
+        countElement.textContent = `(${selectionCount})`;
+    } else {
+        selectionActions.classList.remove('active');
+        countElement.textContent = '';
+    }
+}
+
+// Update deletion functions for both images and text files
+async function deleteSelected() {
+    const currentView = localStorage.getItem('preferredView') || 'image';
+    const selectedItems = currentView === 'image' ? selectedImages : selectedTextFiles;
+    const apiEndpoint = currentView === 'image' ? 'images' : 'texts';
+    
+    if (selectedItems.size === 0) return;
+    
+    const itemType = currentView === 'image' ? 'image' : 'text file';
+    const message = selectedItems.size === 1 
+        ? `Are you sure you want to delete this ${itemType}?` 
+        : `Are you sure you want to delete these ${selectedItems.size} ${itemType}s?`;
+    
+    if (!confirm(message)) {
+        return;
+    }
+
+    const deleteButton = document.querySelector('.btn-delete-selected');
+    const originalText = deleteButton.innerHTML;
+    deleteButton.innerHTML = `<span class="button-icon">⌛</span>Deleting...`;
+    deleteButton.disabled = true;
+
+    try {
+        const failedDeletes = [];
+        
+        for (const path of selectedItems) {
+            try {
+                const response = await fetch(`/api/${apiEndpoint}/${encodeURIComponent(path)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    failedDeletes.push(path);
+                }
+            } catch (error) {
+                console.error(`Error deleting ${path}:`, error);
+                failedDeletes.push(path);
+            }
+        }
+
+        if (failedDeletes.length > 0) {
+            showToast(`Failed to delete ${failedDeletes.length} items`);
+        } else {
+            showToast(`Successfully deleted ${selectedItems.size} items`);
+        }
+
+        // Refresh the current view
+        if (currentView === 'image') {
+            await loadImages(true);
+        } else {
+            await loadTextFiles(true);
+        }
+
+        // Clear selection
+        selectedItems.clear();
+        updateSelectionUI();
+
+    } catch (error) {
+        console.error('Error during deletion:', error);
+        showToast('Error during deletion');
+    } finally {
+        deleteButton.innerHTML = originalText;
+        deleteButton.disabled = false;
+    }
+}
+
+// Update the folder browser functions
+function openFolderBrowser() {
+    const modal = document.getElementById('folderBrowserModal');
+    if (!modal) {
+        console.error('Folder browser modal not found');
+        return;
+    }
+    
+    modal.style.display = 'flex';
+    
+    // Reset show all checkbox
+    const checkbox = document.getElementById('showAllFiles');
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+    
+    // Start from comfy_dir
+    browsePath(null);
 }
 
 function closeFolderBrowser() {
-    document.getElementById('folderBrowserModal').style.display = 'none';
-    currentBrowsePath = null;
-}
-
-function selectCurrentFolder() {
-    if (!currentBrowsePath) return;
-    
-    // Add the folder to the dropdown
-    const select = document.getElementById('workflowFolder');
-    const option = document.createElement('option');
-    option.value = currentBrowsePath;
-    option.textContent = `Custom: ${currentBrowsePath}`;
-    select.appendChild(option);
-    select.value = currentBrowsePath;
-    
-    // Load workflows from the selected folder
-    loadWorkflowsFromFolder(currentBrowsePath);
-    
-    // Close the browser
-    closeFolderBrowser();
+    const modal = document.getElementById('folderBrowserModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }

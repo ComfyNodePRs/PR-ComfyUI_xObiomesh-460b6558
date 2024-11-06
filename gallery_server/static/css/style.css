@@ -121,12 +121,15 @@ body {
 .sorting-controls {
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 90;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 20px auto;
+    padding: 15px 20px;
     background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
-    padding: 15px 0;
-    margin-bottom: 20px;
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255, 121, 198, 0.2);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .controls-container {
@@ -392,7 +395,7 @@ body {
     align-items: center;
     gap: 8px;
     font-size: 0.9em;
-    z-index: 1000;
+    z-index: 95;
     transition: all 0.3s ease;
 }
 
@@ -879,7 +882,7 @@ body {
 /* Side Panel Styles - Updated */
 .side-panel {
     position: fixed;
-    left: -250px;
+    left: -230px;
     top: 0;
     bottom: 0;
     width: 250px;
@@ -894,14 +897,11 @@ body {
     backdrop-filter: blur(10px);
 }
 
-.side-panel.visible {
-    left: 0;
-    box-shadow: 5px 0 30px rgba(255, 121, 198, 0.3);
-}
-
+.side-panel:hover,
+.side-panel.visible,
 .side-panel.pinned {
     left: 0;
-    box-shadow: 5px 0 30px rgba(80, 250, 123, 0.3);
+    box-shadow: 5px 0 30px rgba(255, 121, 198, 0.3);
 }
 
 /* Add hover area with subtle indicator */
@@ -1036,9 +1036,15 @@ body {
 
 /* Main Content Transition */
 .main-content {
-    margin-left: 0;
-    width: 100%;
+    margin-left: 20px;
+    width: calc(100% - 20px);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 100vh;
+    padding-top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
 }
 
 .main-content.shifted {
@@ -1046,11 +1052,16 @@ body {
     width: calc(100% - 250px);
 }
 
+.main-content.shifted .sorting-controls {
+    margin-left: 0;
+    width: 100%;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .side-panel {
+        left: -180px;
         width: 200px;
-        left: -200px;
     }
     
     .main-content.shifted {
@@ -1061,37 +1072,24 @@ body {
 
 @media (max-width: 576px) {
     .side-panel {
-        transform: translateX(-100%);
+        left: -100%;
+        width: 80%;
     }
     
+    .side-panel:hover,
     .side-panel.visible,
     .side-panel.pinned {
-        transform: translateX(0);
+        left: 0;
     }
     
     .main-content {
-        margin-left: 0 !important;
-        width: 100% !important;
+        margin-left: 0;
+        width: 100%;
     }
     
-    .menu-toggle {
-        display: block;
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        z-index: 101;
-        padding: 10px;
-        background: rgba(40, 42, 54, 0.8);
-        border: 2px solid #ff79c6;
-        border-radius: 8px;
-        color: #ff79c6;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .menu-toggle:hover {
-        background: rgba(255, 121, 198, 0.2);
-        transform: scale(1.1);
+    .main-content.shifted {
+        margin-left: 0;
+        width: 100%;
     }
 }
 
@@ -1412,4 +1410,453 @@ body {
     border: 1px solid rgba(255, 121, 198, 0.2);
     font-family: monospace;
     word-break: break-all;
+}
+
+/* Add these styles for the health check button and results modal */
+.health-check {
+    background: rgba(80, 250, 123, 0.2) !important;
+    border-color: #50fa7b !important;
+    color: #50fa7b !important;
+}
+
+.health-check:hover {
+    background: rgba(80, 250, 123, 0.3) !important;
+}
+
+.health-check:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.connection-results-modal .modal-content {
+    background: rgba(40, 42, 54, 0.95);
+    border-radius: 15px;
+    padding: 20px;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+.test-results {
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.test-item {
+    padding: 15px;
+    border-radius: 8px;
+    background: rgba(40, 42, 54, 0.8);
+    border: 1px solid rgba(255, 121, 198, 0.2);
+}
+
+.test-item.success {
+    border-color: #50fa7b;
+    background: rgba(80, 250, 123, 0.1);
+}
+
+.test-item.failure {
+    border-color: #ff5555;
+    background: rgba(255, 85, 85, 0.1);
+}
+
+.test-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.test-icon {
+    font-size: 1.2em;
+}
+
+.test-name {
+    font-weight: bold;
+    color: #ff79c6;
+}
+
+.test-details {
+    margin-left: 25px;
+    font-size: 0.9em;
+    color: #6272a4;
+}
+
+.test-item.success .test-details {
+    color: #50fa7b;
+}
+
+.test-item.failure .test-details {
+    color: #ff5555;
+}
+
+/* Add these styles for the view toggle buttons */
+.view-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.toggle-button {
+    flex: 1;
+    background: rgba(40, 42, 54, 0.8) !important;
+    border: 2px solid #6272a4 !important;
+    color: #6272a4 !important;
+    padding: 8px 12px !important;
+    transition: all 0.3s ease !important;
+}
+
+.toggle-button.active {
+    background: rgba(80, 250, 123, 0.2) !important;
+    border-color: #50fa7b !important;
+    color: #50fa7b !important;
+    font-weight: bold;
+}
+
+.toggle-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(98, 114, 164, 0.3);
+}
+
+.view-content {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.view-content.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Add styles for the main content views */
+#imageGalleryView, #textGalleryView {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#imageGalleryView.active, #textGalleryView.active {
+    display: block;
+    opacity: 1;
+}
+
+.placeholder-message {
+    text-align: center;
+    padding: 20px;
+    color: #6272a4;
+    font-style: italic;
+}
+
+/* Add styles for text cards */
+.text-card {
+    background: rgba(40, 42, 54, 0.8);
+    border-radius: 15px;
+    overflow: hidden;
+    border: 2px solid #bd93f9;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    margin: 10px;
+    cursor: pointer;
+}
+
+.text-card:hover {
+    transform: scale(1.05) translateY(-5px);
+    box-shadow: 
+        0 10px 20px rgba(0, 0, 0, 0.4),
+        0 0 30px rgba(189, 147, 249, 0.4);
+}
+
+.text-preview-container {
+    height: 200px;
+    padding: 15px;
+    background: rgba(40, 42, 54, 0.9);
+    overflow: hidden;
+}
+
+.text-preview {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    color: #f8f8f2;
+    white-space: pre-wrap;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 8;
+    -webkit-box-orient: vertical;
+}
+
+.text-info {
+    padding: 15px;
+    background: rgba(40, 42, 54, 0.9);
+    border-top: 1px solid rgba(189, 147, 249, 0.2);
+}
+
+#textGalleryView .title-text {
+    color: #bd93f9;
+    text-shadow: 0 0 10px #bd93f9, 0 0 20px #bd93f9;
+}
+
+#textGalleryView .btn-sort {
+    border-color: #bd93f9;
+    color: #bd93f9;
+}
+
+#textGalleryView .btn-sort:hover {
+    background: rgba(189, 147, 249, 0.2);
+}
+
+#textGalleryView .btn-sort.active {
+    background: #bd93f9;
+    color: #282a36;
+}
+
+#textGalleryView .search-input {
+    border-color: #bd93f9;
+    color: #bd93f9;
+}
+
+#textGalleryView .search-input:focus {
+    box-shadow: 0 0 20px rgba(189, 147, 249, 0.3);
+}
+
+/* Update the gallery container styles */
+.gallery-container {
+    display: none;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.gallery-container.active {
+    display: block;
+}
+
+/* Add hover indicator */
+.side-panel::after {
+    content: '›';
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ff79c6;
+    font-size: 24px;
+    width: 20px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(40, 42, 54, 0.8);
+    border-radius: 0 5px 5px 0;
+    border: 2px solid #ff79c6;
+    border-left: none;
+    transition: all 0.3s ease;
+    opacity: 0.7;
+}
+
+.side-panel:hover::after,
+.side-panel.visible::after,
+.side-panel.pinned::after {
+    opacity: 0;
+    transform: translate(20px, -50%);
+}
+
+.title-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 30px auto;
+    padding: 0 20px;
+}
+
+.title-text {
+    color: #ff79c6;
+    text-shadow: 0 0 10px #ff79c6, 0 0 20px #ff79c6;
+    font-size: clamp(1.5em, 4vw, 2.5em); /* Responsive font size */
+    margin: 0;
+    padding: 20px 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: clamp(10px, 2vw, 20px);
+    padding: clamp(10px, 2vw, 20px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1240px) {
+    .gallery-container,
+    .title-container {
+        max-width: 900px;
+    }
+    
+    .gallery {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 940px) {
+    .gallery-container,
+    .title-container {
+        max-width: 600px;
+    }
+}
+
+@media (max-width: 640px) {
+    .gallery-container,
+    .title-container {
+        max-width: 100%;
+        padding: 10px;
+    }
+    
+    .gallery {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .title-text {
+        font-size: 1.5em;
+        padding: 15px 0;
+    }
+}
+
+/* Update main content styles */
+.main-content {
+    margin-left: 20px;
+    width: calc(100% - 20px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 100vh;
+    padding-top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.main-content.shifted {
+    margin-left: 250px;
+    width: calc(100% - 250px);
+}
+
+/* Update sorting controls to match container width */
+.sorting-controls {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 20px auto;
+    padding: 15px 20px;
+    background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 121, 198, 0.2);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Responsive adjustments for side panel */
+@media (max-width: 768px) {
+    .main-content.shifted {
+        margin-left: 200px;
+        width: calc(100% - 200px);
+    }
+    
+    .sorting-controls {
+        padding: 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .main-content,
+    .main-content.shifted {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .sorting-controls {
+        padding: 5px;
+    }
+    
+    .sort-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .btn-sort {
+        font-size: 0.9em;
+        padding: 6px 12px;
+    }
+}
+
+/* Update side panel z-index */
+.side-panel {
+    z-index: 100;
+}
+
+/* Update main content styles */
+.main-content {
+    margin-left: 20px;
+    width: calc(100% - 20px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 100vh;
+    padding-top: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.main-content.shifted {
+    margin-left: 250px;
+    width: calc(100% - 250px);
+}
+
+.main-content.shifted .sorting-controls {
+    margin-left: 0;
+    width: 100%;
+}
+
+/* Update z-index hierarchy */
+.server-status { z-index: 95; }
+.side-panel-trigger { z-index: 99; }
+.modal { z-index: 1000; }
+.toast { z-index: 2000; }
+
+/* Add these styles for text card selection */
+.text-card.selected {
+    border-color: #50fa7b;
+    transform: translateY(-5px);
+    box-shadow: 
+        0 0 20px rgba(80, 250, 123, 0.4),
+        0 0 40px rgba(80, 250, 123, 0.2),
+        0 0 60px rgba(80, 250, 123, 0.1);
+    animation: selectedThrob 2s ease-in-out infinite;
+}
+
+/* Update the selection actions for text files */
+.selection-actions {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: rgba(40, 42, 54, 0.95);
+    padding: 15px 25px;
+    border-radius: 30px;
+    display: flex;
+    gap: 15px;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    border: 2px solid #ff79c6;
+}
+
+#textGalleryView .selection-actions {
+    border-color: #bd93f9;
+}
+
+#textGalleryView .btn-delete-selected {
+    background: rgba(255, 85, 85, 0.2);
+    border-color: #ff5555;
 }
