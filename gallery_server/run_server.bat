@@ -1,16 +1,27 @@
 @echo off
+setlocal
+
+set "SHOW_CONSOLE="
+if /i "%1"=="--console" set "SHOW_CONSOLE=1"
+
 echo Starting ComfyUI Gallery Server...
 echo.
-cd /d "C:\ComfyUI_windev\ComfyUI\custom_nodes\ComfyUI_xObiomesh\gallery_server"
-"python" -u "C:\ComfyUI_windev\ComfyUI\custom_nodes\ComfyUI_xObiomesh\gallery_server\gallery_server.py"
+
+cd /d "%~dp0"
+
+if defined SHOW_CONSOLE (
+    "python" -u "ascii_server.py"
+) else (
+    start /b "" "pythonw" "ascii_server.py"
+)
+
 if errorlevel 1 (
     echo.
     echo Server failed to start
     echo Press any key to exit...
     pause >nul
 ) else (
-    echo.
-    echo Server stopped normally
-    echo Press any key to exit...
-    pause >nul
+    echo Server is running in background
+    echo To view console, run with --show-console parameter
+    timeout /t 3 >nul
 )

@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 
 # Get the paths
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -68,7 +69,21 @@ __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
 # Display initialization information
 display_init_info(run_count, run_count_normalized)
 
+def start_gallery_server():
+    try:
+        # Start the gallery server in hidden mode
+        server_process = run_web_server()
+        if server_process:
+            logging.info("Gallery server started successfully")
+            return server_process
+        else:
+            logging.error("Failed to start gallery server")
+            return None
+    except Exception as e:
+        logging.error(f"Error starting gallery server: {e}")
+        return None
+
 # Start the gallery server
-server_process = run_web_server()
+server_process = start_gallery_server()
 
 __version__ = "0.1.x0"

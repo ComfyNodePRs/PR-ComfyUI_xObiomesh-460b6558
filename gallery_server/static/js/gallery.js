@@ -1164,3 +1164,205 @@ function closeFolderBrowser() {
         modal.style.display = 'none';
     }
 }
+
+// Update the console button to show options
+function showConsoleOptions(event) {
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    
+    const menu = document.createElement('div');
+    menu.className = 'console-options-menu';
+    menu.innerHTML = `
+        <div class="menu-item" onclick="openConsoleModal()">
+            <span class="menu-icon">🔲</span>
+            View in Modal
+        </div>
+        <div class="menu-item" onclick="openConsoleWindow()">
+            <span class="menu-icon">🪟</span>
+            Open in New Window
+        </div>
+    `;
+    
+    // Position the menu below the button
+    menu.style.position = 'absolute';
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.left = `${rect.left}px`;
+    
+    // Remove existing menu if any
+    const existingMenu = document.querySelector('.console-options-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+    
+    document.body.appendChild(menu);
+    
+    // Close menu when clicking outside
+    const closeMenu = (e) => {
+        if (!menu.contains(e.target) && e.target !== button) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+        }
+    };
+    document.addEventListener('click', closeMenu);
+}
+
+// Add function to open console in new window
+let consoleWindow = null;
+function openConsoleWindow() {
+    // Close modal if open
+    closeConsoleModal();
+    
+    // Close existing window if open
+    if (consoleWindow && !consoleWindow.closed) {
+        consoleWindow.focus();
+        return;
+    }
+    
+    // Open new window
+    consoleWindow = window.open('', 'ComfyUI Console', 'width=800,height=600');
+    
+    // Add the content with proper event handling
+    consoleWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ComfyUI Console</title>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    background: #282a36;
+                    color: #f8f8f2;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                }
+                .console-container {
+                    height: calc(100vh - 100px);
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 2px solid #6272a4;
+                    border-radius: 8px;
+                    padding: 10px;
+                    overflow-y: auto;
+                }
+                .console-output {
+                    padding: 10px;
+                    white-space: pre-wrap;
+                    font-size: 0.9em;
+                    line-height: 1.4;
+                }
+                .log-entry {
+                    margin: 2px 0;
+                    padding: 2px 5px;
+                    border-radius: 4px;
+                    animation: fadeIn 0.3s ease;
+                }
+                .info { color: #50fa7b; }
+                .error { 
+                    color: #ff5555;
+                    background: rgba(255, 85, 85, 0.1);
+                }
+                .warning {
+                    color: #ffb86c;
+                    background: rgba(255, 184, 108, 0.1);
+                }
+                .controls {
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    display: flex;
+                    gap: 10px;
+                }
+                .control-button {
+                    background: rgba(98, 114, 164, 0.2);
+                    border: 2px solid #6272a4;
+                    color: #6272a4;
+                    padding: 8px 15px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+                .control-button:hover {
+                    background: rgba(98, 114, 164, 0.3);
+                    color: #f8f8f2;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="console-container">
+                <div id="consoleOutput" class="console-output"></div>
+            </div>
+            <div class="controls">
+                <button class="control-button" onclick="clearConsole()">Clear</button>
+                <button class="control-button" id="autoScrollButton" onclick="toggleAutoScroll()">
+                    Auto-scroll: ON
+                </button>
+            </div>
+            <script>
+                let autoScroll = true;
+                let consoleEventSource = null;
+                
+                function clearConsole() {
+                    document.getElementById('consoleOutput').innerHTML = '';
+                }
+                
+                function toggleAutoScroll() {
+                    autoScroll = !autoScroll;
+                    const button = document.getElementById('autoScrollButton');
+                    button.textContent = 'Auto-scroll: ' + (autoScroll ? 'ON' : 'OFF');
+                }
+                
+                function initConsole() {
+                    // Setup EventSource for console updates
+                    consoleEventSource = new EventSource('/api/console');
+                    
+                    consoleEventSource.onopen = function() {
+                        console.log('Console connection opened');
+                    };
+                    
+                    consoleEventSource.onmessage = function(event) {
+                        const consoleOutput = document.getElementById('consoleOutput');
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            const entry = document.createElement('div');
+                            entry.className = 'log-entry ' + data.level.toLowerCase();
+                            entry.textContent = '[' + data.time + '] ' + data.message;
+                            
+                            consoleOutput.appendChild(entry);
+                            
+                            if (autoScroll) {
+                                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                            }
+                        } catch (error) {
+                            console.error('Error processing console message:', error);
+                        }
+                    };
+                    
+                    consoleEventSource.onerror = function(error) {
+                        console.error('Console connection error:', error);
+                        // Try to reconnect after a delay
+                        setTimeout(initConsole, 5000);
+                    };
+                }
+                
+                // Initialize console when window loads
+                window.onload = initConsole;
+                
+                // Clean up when window closes
+                window.onbeforeunload = function() {
+                    if (consoleEventSource) {
+                        consoleEventSource.close();
+                        consoleEventSource = null;
+                    }
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    
+    // Close the document after writing
+    consoleWindow.document.close();
+}

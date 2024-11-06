@@ -1860,3 +1860,46 @@ body {
     background: rgba(255, 85, 85, 0.2);
     border-color: #ff5555;
 }
+
+/* Add styles for console options menu */
+.console-options-menu {
+    background: rgba(40, 42, 54, 0.95);
+    border: 2px solid #6272a4;
+    border-radius: 8px;
+    padding: 5px;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.console-options-menu .menu-item {
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: #6272a4;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.console-options-menu .menu-item:hover {
+    background: rgba(98, 114, 164, 0.2);
+    color: #f8f8f2;
+}
+
+.console-options-menu .menu-icon {
+    font-size: 1.2em;
+}
+
+/* Add dropdown icon to console button */
+.dropdown-icon {
+    margin-left: auto;
+    font-size: 0.8em;
+    transition: transform 0.2s ease;
+}
+
+.console-button:hover .dropdown-icon {
+    transform: translateY(2px);
+}

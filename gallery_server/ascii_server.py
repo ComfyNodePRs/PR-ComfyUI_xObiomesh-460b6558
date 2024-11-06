@@ -980,19 +980,41 @@ class GalleryHandler(SimpleHTTPRequestHandler):
             # Use Python executable from sys.executable
             python_path = sys.executable
             
-            # Start new process
+            # Start new process with hidden window
             if os.name == 'nt':  # Windows
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+                
                 subprocess.Popen(
-                    ['start', 'cmd', '/k', python_path, script_path],
-                    shell=True,
-                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                    [python_path, script_path],
+                    startupinfo=startupinfo,
+                    creationflags=subprocess.CREATE_NO_WINDOW
                 )
             else:  # Linux/Mac
                 subprocess.Popen(
-                    ['gnome-terminal', '--', python_path, script_path]
+                    [python_path, script_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
                 )
             
-            # Schedule shutdown of current server
+            # Clean up and exit current server
+            logging.info("Shutting down current server...")
+            # Stop the file observer
+            observer.stop()
+            observer.join()
+            # Close all client connections
+            for client in connection_manager.clients:
+                try:
+                    client.close()
+                except:
+                    pass
+            for client in connection_manager.console_clients:
+                try:
+                    client.close()
+                except:
+                    pass
+            # Exit after a short delay
             threading.Timer(1.0, lambda: os._exit(0)).start()
             
         except Exception as e:
