@@ -10,9 +10,9 @@ echo.
 cd /d "%~dp0"
 
 if defined SHOW_CONSOLE (
-    "python" -u "ascii_server.py"
+    "c:\ComfyUI_windev\python_embeded\python.exe" -u "ascii_server.py"
 ) else (
-    start /b "" "pythonw" "ascii_server.py"
+    start /b "" "c:\ComfyUI_windev\python_embeded\pythonw" "ascii_server.py"
 )
 
 if errorlevel 1 (
