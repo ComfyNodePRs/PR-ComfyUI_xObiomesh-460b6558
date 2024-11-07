@@ -930,6 +930,15 @@ body {
     padding-bottom: 10px;
     border-bottom: 2px solid rgba(255, 121, 198, 0.3);
     text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    user-select: none;
+}
+
+.panel-header:hover {
+    background: rgba(255, 121, 198, 0.1);
+    border-radius: 8px;
 }
 
 .panel-header h3 {
@@ -937,6 +946,39 @@ body {
     margin: 0;
     font-size: 1.3em;
     text-shadow: 0 0 10px rgba(255, 121, 198, 0.5);
+    padding: 10px;
+    transition: transform 0.3s ease;
+}
+
+.panel-header:hover h3 {
+    transform: scale(1.05);
+}
+
+/* Update pin indicator */
+.panel-header::after {
+    content: '📌';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%) scale(0.8);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.panel-header:hover::after {
+    opacity: 0.7;
+    transform: translateY(-50%) scale(1);
+}
+
+.side-panel.pinned .panel-header::after {
+    opacity: 1;
+    transform: translateY(-50%) scale(1) rotate(-45deg);
+    color: #50fa7b;
+}
+
+/* Remove old pin button */
+.pin-button {
+    display: none;
 }
 
 /* Panel Buttons */
@@ -985,43 +1027,6 @@ body {
     width: 300px;
     height: 300px;
     opacity: 0;
-}
-
-/* Pin Button */
-.pin-button {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: transparent;
-    border: 2px solid #ff79c6;
-    border-radius: 50%;
-    color: #ff79c6;
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2em;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 10px rgba(255, 121, 198, 0.2);
-}
-
-.pin-button:hover {
-    transform: scale(1.1) rotate(-15deg);
-    box-shadow: 0 0 15px rgba(255, 121, 198, 0.4);
-}
-
-.pin-button.pinned {
-    color: #50fa7b;
-    border-color: #50fa7b;
-    transform: rotate(-45deg);
-    box-shadow: 0 0 15px rgba(80, 250, 123, 0.3);
-}
-
-.pin-button.pinned:hover {
-    transform: scale(1.1) rotate(-30deg);
-    box-shadow: 0 0 20px rgba(80, 250, 123, 0.4);
 }
 
 /* Button Icons */

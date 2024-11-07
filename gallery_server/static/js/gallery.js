@@ -34,9 +34,9 @@ const sortFunctions = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // Set initial view based on saved preference
-    const preferredView = localStorage.getItem('preferredView') || 'image';
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize side panel
+    initializeSidePanel();
     
     // Initialize sort buttons
     const imageSortBtn = document.querySelector(`[data-sort="${currentSortCriteria}"]`);
@@ -46,25 +46,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (textSortBtn) textSortBtn.classList.add('active');
     
     // Load initial content
+    const preferredView = localStorage.getItem('preferredView') || 'image';
     if (preferredView === 'image') {
-        await loadImages(true);
+        loadImages(true);
     } else {
-        await loadTextFiles(true);
+        loadTextFiles(true);
     }
     
     toggleView(preferredView);
-    
-    // Start periodic refresh
-    setInterval(() => {
-        if (document.visibilityState === 'visible') {
-            const currentView = localStorage.getItem('preferredView') || 'image';
-            if (currentView === 'image') {
-                loadImages();
-            } else {
-                loadTextFiles();
-            }
-        }
-    }, UPDATE_INTERVAL);
     
     // Add click handler for workflow modal close
     document.getElementById('workflowModal').addEventListener('click', (event) => {
@@ -72,9 +61,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeWorkflowModal();
         }
     });
-    
-    // Initialize side panel
-    initializeSidePanel();
 
     // Add click handlers for all modals
     document.querySelectorAll('.modal').forEach(modal => {
@@ -664,6 +650,9 @@ function showToast(message, duration = 3000) {
 // Add these functions for side panel behavior
 function initializeSidePanel() {
     const body = document.body;
+    const sidePanel = document.querySelector('.side-panel');
+    const mainContent = document.querySelector('.main-content');
+    const panelHeader = document.querySelector('.panel-header');
     
     // Create trigger area
     const trigger = document.createElement('div');
@@ -672,15 +661,41 @@ function initializeSidePanel() {
     
     // Add event listeners
     trigger.addEventListener('mouseenter', showPanel);
-    const sidePanel = document.querySelector('.side-panel');
     sidePanel.addEventListener('mouseleave', hidePanel);
+    
+    // Add click handler for panel header
+    if (panelHeader) {
+        panelHeader.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            console.log('Panel header clicked'); // Debug log
+            
+            const isPinned = sidePanel.classList.contains('pinned');
+            console.log('Current pinned state:', isPinned); // Debug log
+            
+            if (isPinned) {
+                sidePanel.classList.remove('pinned');
+                mainContent.classList.remove('shifted');
+                localStorage.setItem('sidePanelPinned', 'false');
+                console.log('Unpinning panel'); // Debug log
+            } else {
+                sidePanel.classList.add('pinned');
+                mainContent.classList.add('shifted');
+                localStorage.setItem('sidePanelPinned', 'true');
+                console.log('Pinning panel'); // Debug log
+            }
+        });
+    }
     
     // Load pinned state from localStorage
     const isPinned = localStorage.getItem('sidePanelPinned') === 'true';
+    console.log('Initial pinned state from localStorage:', isPinned); // Debug log
+    
     if (isPinned) {
         sidePanel.classList.add('pinned');
-        document.querySelector('.pin-button').classList.add('pinned');
-        document.querySelector('.main-content').classList.add('shifted');
+        mainContent.classList.add('shifted');
+        console.log('Applied pinned state from localStorage'); // Debug log
     }
 }
 
@@ -701,23 +716,6 @@ function hidePanel() {
     if (!sidePanel.classList.contains('pinned')) {
         sidePanel.classList.remove('visible');
         mainContent.classList.remove('shifted');
-    }
-}
-
-function togglePin() {
-    const sidePanel = document.querySelector('.side-panel');
-    const pinButton = document.querySelector('.pin-button');
-    const mainContent = document.querySelector('.main-content');
-    
-    if (sidePanel.classList.contains('pinned')) {
-        sidePanel.classList.remove('pinned');
-        pinButton.classList.remove('pinned');
-        localStorage.setItem('sidePanelPinned', 'false');
-        hidePanel();
-    } else {
-        sidePanel.classList.add('pinned');
-        pinButton.classList.add('pinned');
-        localStorage.setItem('sidePanelPinned', 'true');
     }
 }
 
