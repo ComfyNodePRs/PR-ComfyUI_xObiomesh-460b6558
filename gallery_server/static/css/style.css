@@ -1908,3 +1908,202 @@ body {
 .console-button:hover .dropdown-icon {
     transform: translateY(2px);
 }
+
+/* Add LLM Chat View styles */
+#llmChatView .title-text {
+    color: #50fa7b;
+    text-shadow: 0 0 10px #50fa7b, 0 0 20px #50fa7b;
+}
+
+.chat-controls {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    width: 100%;
+    max-width: calc(250px * 4 + 60px);
+    margin: 0 auto 20px auto;
+    padding: 15px 20px;
+    background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(80, 250, 123, 0.2);
+    border-radius: 0 0 15px 15px;
+}
+
+.model-selection {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.model-dropdown {
+    flex: 1;
+    padding: 10px 15px;
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #50fa7b;
+    border-radius: 8px;
+    color: #50fa7b;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.model-dropdown:hover {
+    background: rgba(80, 250, 123, 0.1);
+}
+
+.refresh-models-btn {
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #50fa7b;
+    color: #50fa7b;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.refresh-models-btn:hover {
+    background: rgba(80, 250, 123, 0.1);
+    transform: translateY(-2px);
+}
+
+.chat-container {
+    max-width: calc(250px * 4 + 60px);
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: calc(100vh - 300px);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #50fa7b;
+    border-radius: 15px;
+    padding: 20px;
+}
+
+.chat-message {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 10px;
+    max-width: 80%;
+}
+
+.user-message {
+    background: rgba(80, 250, 123, 0.1);
+    border: 1px solid #50fa7b;
+    margin-left: auto;
+    color: #50fa7b;
+}
+
+.assistant-message {
+    background: rgba(189, 147, 249, 0.1);
+    border: 1px solid #bd93f9;
+    margin-right: auto;
+    color: #bd93f9;
+}
+
+.system-message {
+    text-align: center;
+    color: #6272a4;
+    font-style: italic;
+    padding: 20px;
+}
+
+.chat-input-container {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 15px;
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #50fa7b;
+    border-radius: 10px;
+    color: #f8f8f2;
+    font-size: 1em;
+    resize: none;
+    transition: all 0.3s ease;
+}
+
+.chat-input:focus {
+    outline: none;
+    box-shadow: 0 0 20px rgba(80, 250, 123, 0.2);
+    background: rgba(40, 42, 54, 1);
+}
+
+.send-button {
+    background: #50fa7b;
+    border: none;
+    color: #282a36;
+    padding: 15px 25px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.send-button:disabled {
+    background: #2c4a3e;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: not-allowed;
+}
+
+.send-button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(80, 250, 123, 0.3);
+}
+
+/* Add loading animation for messages */
+.loading-message {
+    display: flex;
+    gap: 5px;
+    padding: 10px;
+    color: #6272a4;
+}
+
+.loading-dot {
+    width: 8px;
+    height: 8px;
+    background: #6272a4;
+    border-radius: 50%;
+    animation: loadingDot 1.5s infinite;
+}
+
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loadingDot {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.clear-storage-btn {
+    background: rgba(255, 85, 85, 0.2);
+    border: 2px solid #ff5555;
+    color: #ff5555;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.clear-storage-btn:hover {
+    background: rgba(255, 85, 85, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 85, 85, 0.3);
+}

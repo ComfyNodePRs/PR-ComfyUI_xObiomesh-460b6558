@@ -22,6 +22,10 @@
                     <span class="button-icon">📝</span>
                     TextGen
                 </button>
+                <button class="panel-button toggle-button" onclick="toggleView('llm')" id="llmViewBtn">
+                    <span class="button-icon">🤖</span>
+                    LLM Chat
+                </button>
             </div>
             
             <div class="panel-separator"></div>
@@ -159,6 +163,53 @@
             </div>
             <div id="textGallery" class="gallery">
                 <div class="loading">Loading text files... ⌛</div>
+            </div>
+        </div>
+
+        <div id="llmChatView" class="gallery-container">
+            <div class="title-container">
+                <h1 class="title-text">
+                    <span class="title-emoji">🤖</span>
+                    Local LLM Chat
+                    <span class="title-emoji">🤖</span>
+                </h1>
+            </div>
+            
+            <div class="chat-controls">
+                <div class="controls-container">
+                    <div class="model-selection">
+                        <select id="modelSelect" class="model-dropdown">
+                            <option value="">Loading models...</option>
+                        </select>
+                        <button class="refresh-models-btn" onclick="refreshModels()">
+                            <span class="button-icon">🔄</span>
+                            Refresh
+                        </button>
+                        <button class="clear-storage-btn" onclick="clearStorageAndReload()">
+                            <span class="button-icon">🗑️</span>
+                            Clear History
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-container">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="system-message">Select a model to start chatting</div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Type your message here..."
+                        rows="3"
+                    ></textarea>
+                    <button id="sendMessage" class="send-button" disabled>
+                        <span class="button-icon">📤</span>
+                        Send
+                    </button>
+                </div>
             </div>
         </div>
     </div>

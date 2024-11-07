@@ -18,6 +18,9 @@ let isSelecting = false;
 let newImages = new Set();
 let lastImageCount = 0;
 let selectedWorkflowPath = null;
+let selectedModel = null;
+let isGenerating = false;
+let clientId = null;
 
 const sortFunctions = {
     'date-desc': (a, b) => new Date(b.date) - new Date(a.date),
@@ -35,6 +38,10 @@ const sortFunctions = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Generate a unique client ID
+    clientId = 'client_' + Math.random().toString(36).substr(2, 9);
+    console.log('Generated client ID:', clientId);
+    
     // Initialize side panel
     initializeSidePanel();
     
@@ -66,26 +73,79 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', handleModalClick);
     });
+
+    // Add send button click handler
+    const sendButton = document.getElementById('sendMessage');
+    if (sendButton) {
+        sendButton.addEventListener('click', () => {
+            console.log('Send button clicked');
+            sendMessage();
+        });
+    } else {
+        console.error('Send button not found in DOM');
+    }
+
+    // Load saved conversation and model selection
+    loadConversationFromStorage();
+
+    // Focus chat input when chat view is active
+    if (localStorage.getItem('preferredView') === 'llm') {
+        setTimeout(() => {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput && !chatInput.disabled) {
+                chatInput.focus();
+            }
+        }, 100);
+    }
 });
 
 function toggleView(viewType) {
     const imageGalleryView = document.getElementById('imageGalleryView');
     const textGalleryView = document.getElementById('textGalleryView');
+    const llmChatView = document.getElementById('llmChatView');
     const imageBtn = document.getElementById('imageViewBtn');
     const textBtn = document.getElementById('textViewBtn');
+    const llmBtn = document.getElementById('llmViewBtn');
     
+    // Hide all views
+    imageGalleryView.classList.remove('active');
+    textGalleryView.classList.remove('active');
+    llmChatView.classList.remove('active');
+    
+    // Remove active class from all buttons
+    imageBtn.classList.remove('active');
+    textBtn.classList.remove('active');
+    llmBtn.classList.remove('active');
+    
+    // Show selected view and activate button
     if (viewType === 'image') {
         imageGalleryView.classList.add('active');
-        textGalleryView.classList.remove('active');
         imageBtn.classList.add('active');
-        textBtn.classList.remove('active');
-        loadImages(true);  // Force reload images
-    } else {
-        imageGalleryView.classList.remove('active');
+        // Only load images if we haven't loaded them yet
+        if (cachedImages.length === 0) {
+            loadImages(true);
+        }
+    } else if (viewType === 'text') {
         textGalleryView.classList.add('active');
-        imageBtn.classList.remove('active');
         textBtn.classList.add('active');
-        loadTextFiles(true);  // Force reload text files
+        // Only load text files if we haven't loaded them yet
+        if (cachedTextFiles.length === 0) {
+            loadTextFiles(true);
+        }
+    } else if (viewType === 'llm') {
+        llmChatView.classList.add('active');
+        llmBtn.classList.add('active');
+        // Only load models if we haven't loaded them yet
+        if (!selectedModel) {
+            loadModels();
+        }
+        // Focus chat input
+        setTimeout(() => {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput && !chatInput.disabled) {
+                chatInput.focus();
+            }
+        }, 100);
     }
     
     localStorage.setItem('preferredView', viewType);
@@ -1493,4 +1553,394 @@ function selectCurrentFolder() {
 function refreshBrowser() {
     const currentPath = document.getElementById('currentPath').textContent;
     browsePath(currentPath);
+}
+
+// Add these LLM-related functions
+async function loadModels() {
+    const modelSelect = document.getElementById('modelSelect');
+    
+    try {
+        console.log('Fetching models from Ollama...');
+        modelSelect.innerHTML = '<option value="">Loading models...</option>';
+        
+        const response = await fetch('/api/ollama/models');
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch models: ${response.status} ${errorText}`);
+        }
+        
+        const models = await response.json();
+        console.log('Received models:', models);
+        
+        if (Array.isArray(models) && models.length > 0) {
+            modelSelect.innerHTML = models.map(model => `
+                <option value="${model.name}">${model.name}</option>
+            `).join('');
+            console.log('Updated select with models');
+        } else {
+            modelSelect.innerHTML = '<option value="">No models found</option>';
+            console.log('No models found in response');
+        }
+        
+        // Enable/disable chat input based on model selection
+        updateChatControls();
+        
+    } catch (error) {
+        console.error('Error loading models:', error);
+        modelSelect.innerHTML = `<option value="">Error loading models: ${error.message}</option>`;
+    }
+}
+
+function refreshModels() {
+    loadModels();
+}
+
+function updateChatControls() {
+    const modelSelect = document.getElementById('modelSelect');
+    const chatInput = document.getElementById('chatInput');
+    const sendButton = document.getElementById('sendMessage');
+    
+    const modelSelected = modelSelect.value !== '';
+    
+    chatInput.disabled = !modelSelected;
+    sendButton.disabled = !modelSelected || chatInput.value.trim() === '';
+    
+    // Maintain focus if appropriate
+    if (modelSelected && !chatInput.disabled) {
+        chatInput.focus();
+    }
+}
+
+// Add chat input handlers
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('chatInput');
+    const sendButton = document.getElementById('sendMessage');
+    const modelSelect = document.getElementById('modelSelect');
+    
+    chatInput.addEventListener('input', () => {
+        sendButton.disabled = chatInput.value.trim() === '' || !modelSelect.value;
+    });
+    
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !sendButton.disabled) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    modelSelect.addEventListener('change', () => {
+        selectedModel = modelSelect.value;
+        console.log('Selected model:', selectedModel);
+        
+        if (selectedModel) {
+            addMessageToChat('system', `Model switched to ${selectedModel}`);
+        }
+        
+        updateChatControls();
+        // Save selected model
+        localStorage.setItem('selectedModel', selectedModel);
+        
+        // Focus the chat input after model selection
+        setTimeout(() => {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput && !chatInput.disabled) {
+                chatInput.focus();
+            }
+        }, 100);
+    });
+});
+
+async function sendMessage() {
+    if (isGenerating) {
+        console.log('Already generating a response, please wait...');
+        return;
+    }
+    
+    const chatInput = document.getElementById('chatInput');
+    const message = chatInput.value.trim();
+    
+    console.log('Chat input value:', chatInput.value);
+    console.log('Trimmed message:', message);
+    console.log('Selected model:', selectedModel);
+    console.log('Client ID:', clientId);
+    
+    if (!message || !selectedModel) {
+        console.log('Validation failed:');
+        console.log('- Message empty:', !message);
+        console.log('- No model selected:', !selectedModel);
+        return;
+    }
+    
+    console.log('Sending message:', message);
+    console.log('Using model:', selectedModel);
+    
+    // Add user message to chat
+    addMessageToChat('user', message);
+    
+    // Clear input and disable controls
+    chatInput.value = '';
+    chatInput.disabled = true;
+    updateChatControls();
+    
+    // Show loading indicator
+    addLoadingMessage();
+    isGenerating = true;
+    
+    try {
+        console.log('Preparing request to server...');
+        const requestData = {
+            model: selectedModel,
+            prompt: message,
+            client_id: clientId  // Add client ID to request
+        };
+        console.log('Request data:', requestData);
+        
+        const response = await fetch('/api/ollama/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error(`Generation failed: ${response.status} ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Received response from server:', result);
+        
+        // Remove loading indicator
+        removeLoadingMessage();
+        
+        // Add assistant response
+        if (result && result.response) {
+            console.log('Adding response to chat:', result.response);
+            addMessageToChat('assistant', result.response);
+        } else {
+            console.error('Invalid response format:', result);
+            throw new Error('Invalid response format from server');
+        }
+        
+    } catch (error) {
+        console.error('Error generating response:', error);
+        removeLoadingMessage();
+        addMessageToChat('system', `Error: ${error.message}`);
+    } finally {
+        console.log('Cleaning up after request');
+        isGenerating = false;
+        chatInput.disabled = false;
+        updateChatControls();
+        
+        // Refocus the input after sending
+        setTimeout(() => {
+            if (!chatInput.disabled) {
+                chatInput.focus();
+            }
+        }, 100);
+    }
+}
+
+function addMessageToChat(role, content) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}-message`;
+    
+    // Format the content based on role
+    if (role === 'system') {
+        messageDiv.innerHTML = `<span class="system-icon">🔧</span> ${content}`;
+    } else if (role === 'user') {
+        messageDiv.innerHTML = `<span class="user-icon">👤</span> ${content}`;
+    } else if (role === 'assistant') {
+        messageDiv.innerHTML = `<span class="assistant-icon">🤖</span> ${content}`;
+    }
+    
+    // Add timestamp
+    const timestamp = document.createElement('div');
+    timestamp.className = 'message-timestamp';
+    timestamp.textContent = new Date().toLocaleTimeString();
+    messageDiv.appendChild(timestamp);
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Save conversation after adding message
+    saveConversationToStorage();
+}
+
+function addLoadingMessage() {
+    const chatMessages = document.getElementById('chatMessages');
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-message';
+    loadingDiv.innerHTML = `
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+    `;
+    loadingDiv.id = 'loadingMessage';
+    chatMessages.appendChild(loadingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeLoadingMessage() {
+    const loadingMessage = document.getElementById('loadingMessage');
+    if (loadingMessage) {
+        loadingMessage.remove();
+    }
+}
+
+// Add this function to handle errors more gracefully
+function handleChatError(error) {
+    console.error('Chat error:', error);
+    removeLoadingMessage();
+    addMessageToChat('system', 'An error occurred. Please try again.');
+    
+    // Show toast with error message
+    showToast(`Error: ${error.message}`);
+}
+
+// Add function to clear chat history
+function clearChat() {
+    // Clear visual chat
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML = '<div class="system-message">Chat history cleared</div>';
+    
+    // Generate new client ID to start fresh conversation
+    clientId = 'client_' + Math.random().toString(36).substr(2, 9);
+    console.log('Generated new client ID:', clientId);
+    
+    // Clear stored conversation
+    localStorage.removeItem('chatHistory');
+    
+    addMessageToChat('system', 'Started new conversation');
+}
+
+// Add these functions for chat persistence
+function saveConversationToStorage() {
+    const chatMessages = document.getElementById('chatMessages');
+    const messages = Array.from(chatMessages.children)
+        .filter(msg => !msg.classList.contains('loading-message'))
+        .map(msg => {
+            // Get the message content without the timestamp
+            const contentElement = msg.cloneNode(true);
+            const timestamp = contentElement.querySelector('.message-timestamp');
+            if (timestamp) timestamp.remove();
+            
+            // Remove the icon span from content
+            const iconSpan = contentElement.querySelector('span[class$="-icon"]');
+            if (iconSpan) iconSpan.remove();
+            
+            return {
+                role: Array.from(msg.classList)
+                    .find(c => c.endsWith('-message'))
+                    .replace('-message', ''),
+                content: contentElement.textContent.trim(),
+                timestamp: msg.querySelector('.message-timestamp')?.textContent || ''
+            };
+        });
+    
+    localStorage.setItem('chatHistory', JSON.stringify(messages));
+    localStorage.setItem('selectedModel', selectedModel || '');
+}
+
+function loadConversationFromStorage() {
+    try {
+        // Load selected model
+        const savedModel = localStorage.getItem('selectedModel');
+        if (savedModel) {
+            const modelSelect = document.getElementById('modelSelect');
+            // Wait for models to load before setting selection
+            const checkModelSelect = setInterval(() => {
+                if (modelSelect.options.length > 1) {
+                    modelSelect.value = savedModel;
+                    selectedModel = savedModel;
+                    updateChatControls();
+                    clearInterval(checkModelSelect);
+                }
+            }, 100);
+        }
+        
+        // Load chat history
+        const savedChat = localStorage.getItem('chatHistory');
+        if (savedChat) {
+            const messages = JSON.parse(savedChat);
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = ''; // Clear default message
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `chat-message ${msg.role}-message`;
+                
+                // Add appropriate icon based on role
+                let icon = '';
+                if (msg.role === 'system') icon = '🔧';
+                else if (msg.role === 'user') icon = '👤';
+                else if (msg.role === 'assistant') icon = '🤖';
+                
+                // Create icon span
+                const iconSpan = document.createElement('span');
+                iconSpan.className = `${msg.role}-icon`;
+                iconSpan.textContent = icon;
+                
+                // Create content span
+                const contentSpan = document.createElement('span');
+                contentSpan.className = 'message-content';
+                contentSpan.textContent = ` ${msg.content}`; // Add space after icon
+                
+                // Add icon and content to message
+                messageDiv.appendChild(iconSpan);
+                messageDiv.appendChild(contentSpan);
+                
+                // Add timestamp if it exists
+                if (msg.timestamp) {
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'message-timestamp';
+                    timestamp.textContent = msg.timestamp;
+                    messageDiv.appendChild(timestamp);
+                }
+                
+                chatMessages.appendChild(messageDiv);
+            });
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Focus chat input if in chat view
+        if (document.getElementById('llmChatView').classList.contains('active')) {
+            setTimeout(() => {
+                const chatInput = document.getElementById('chatInput');
+                if (chatInput && !chatInput.disabled) {
+                    chatInput.focus();
+                }
+            }, 100);
+        }
+    } catch (error) {
+        console.error('Error loading conversation:', error);
+        addMessageToChat('system', 'Error loading previous conversation');
+    }
+}
+
+// Add this function to clear storage and reload
+function clearStorageAndReload() {
+    if (confirm('Are you sure you want to clear chat history? This cannot be undone.')) {
+        localStorage.removeItem('chatHistory');
+        localStorage.removeItem('selectedModel');
+        location.reload();
+    }
+}
+
+// Add a helper function for focusing the chat input
+function focusChatInput() {
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput && !chatInput.disabled && document.getElementById('llmChatView').classList.contains('active')) {
+        chatInput.focus();
+    }
 }

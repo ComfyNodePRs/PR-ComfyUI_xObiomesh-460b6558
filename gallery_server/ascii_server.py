@@ -21,6 +21,8 @@ import subprocess
 import requests
 from queue import Queue
 import glob
+from ollama import Client
+from collections import defaultdict
 
 # Configure logging with colors for better visibility
 class ColorFormatter(logging.Formatter):
@@ -150,6 +152,9 @@ REFRESH_INTERVAL = 10000  # Minimum time between image list refreshes in ms
 # Create thumbnail cache directory if it doesn't exist
 if not os.path.exists(THUMBNAIL_CACHE_DIR):
     os.makedirs(THUMBNAIL_CACHE_DIR)
+
+# Store conversation history per client
+conversation_histories = defaultdict()
 
 class ImageChangeHandler(FileSystemEventHandler):
     def on_created(self, event):
@@ -295,6 +300,64 @@ class GalleryHandler(SimpleHTTPRequestHandler):
         try:
             logging.info(f"Handling request for path: {self.path}")
             
+            # Handle Ollama models request first
+            if self.path == '/api/ollama/models':
+                try:
+                    logging.info("Attempting to get Ollama models using subprocess")
+                    # Run ollama list command
+                    result = subprocess.run(['ollama', 'list'], 
+                                         capture_output=True, 
+                                         text=True)
+                    
+                    if result.returncode == 0:
+                        # Parse the output, skipping the header line
+                        lines = result.stdout.strip().split('\n')[1:]
+                        models = []
+                        
+                        for line in lines:
+                            if line.strip():  # Skip empty lines
+                                parts = line.split()
+                                if parts:
+                                    model_name = parts[0]
+                                    # Remove ':latest' suffix if present
+                                    model_name = model_name.replace(':latest', '')
+                                    # Get size if available
+                                    size = parts[1] if len(parts) > 1 else 'unknown'
+                                    
+                                    models.append({
+                                        'name': model_name,
+                                        'size': size
+                                    })
+                        
+                        # Sort models alphabetically
+                        models.sort(key=lambda x: x['name'])
+                        
+                        logging.info(f"Found {len(models)} Ollama models")
+                        
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(json.dumps(models).encode())
+                        return
+                        
+                    else:
+                        logging.error(f"Failed to get models from ollama list: {result.stderr}")
+                        self.send_error(500, 'Failed to get model list from Ollama')
+                        return
+                        
+                except FileNotFoundError:
+                    logging.error("Ollama command not found. Please ensure Ollama is installed and in PATH")
+                    self.send_error(500, 'Ollama not found - Is it installed?')
+                    return
+                except Exception as e:
+                    logging.error(f"Error getting Ollama models: {str(e)}")
+                    logging.error(f"Exception type: {type(e)}")
+                    import traceback
+                    logging.error(f"Traceback: {traceback.format_exc()}")
+                    self.send_error(500, f'Failed to get model list: {str(e)}')
+                    return
+
             # Handle static files
             if self.path.startswith('/static/'):
                 try:
@@ -743,6 +806,129 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     logging.error(f"Error getting text file list: {str(e)}")
                     self.send_error(500, 'Internal Server Error')
+            elif self.path == '/api/ollama/generate':
+                try:
+                    logging.info("Received generate request")
+                    
+                    # Log request headers
+                    logging.info(f"Request headers: {self.headers}")
+                    
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    logging.info(f"Content length: {content_length}")
+                    
+                    post_data = self.rfile.read(content_length)
+                    logging.info(f"Raw post data: {post_data}")
+                    
+                    data = json.loads(post_data.decode('utf-8'))
+                    logging.info(f"Parsed data: {data}")
+                    
+                    model = data.get('model')
+                    prompt = data.get('prompt')
+                    client_id = data.get('client_id')  # Added client ID
+                    
+                    logging.info(f"🤖 Generating response with model: {model}")
+                    logging.info(f"📝 User prompt: {prompt}")
+                    logging.info(f"👤 Client ID: {client_id}")
+                    
+                    if not model or not prompt:
+                        logging.error("Missing model or prompt in request")
+                        self.send_error(400, 'Missing model or prompt')
+                        return
+                    
+                    try:
+                        # Create Ollama client
+                        client = Client(host='http://localhost:11434')
+                        
+                        # Get or create conversation history for this client
+                        if client_id not in conversation_histories:
+                            conversation_histories[client_id] = []
+                        
+                        # Add user message to history
+                        conversation_histories[client_id].append({
+                            'role': 'user',
+                            'content': prompt
+                        })
+                        
+                        # Generate response with context
+                        logging.info("Sending request to Ollama with context...")
+                        
+                        # Use generate instead of chat for models that don't support chat
+                        try:
+                            # First try chat API
+                            response = client.chat(
+                                model=model,
+                                messages=conversation_histories[client_id],
+                                stream=False
+                            )
+                            response_content = response['message']['content']
+                        except Exception as chat_error:
+                            logging.info(f"Chat API failed, falling back to generate: {chat_error}")
+                            # Fallback to generate API
+                            response = client.generate(
+                                model=model,
+                                prompt=prompt,
+                                stream=False
+                            )
+                            response_content = response['response']
+                        
+                        # Add assistant response to history
+                        conversation_histories[client_id].append({
+                            'role': 'assistant',
+                            'content': response_content
+                        })
+                        
+                        logging.info("✅ Response received from Ollama")
+                        
+                        response_data = {
+                            'response': response_content
+                        }
+                        
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(json.dumps(response_data).encode())
+                        
+                        logging.info(f"📤 Sent response to client")
+                        
+                    except Exception as e:
+                        logging.error(f"❌ Error communicating with Ollama: {str(e)}")
+                        logging.error(f"Exception type: {type(e)}")
+                        logging.error(f"Exception traceback: {traceback.format_exc()}")
+                        self.send_error(500, f'Ollama error: {str(e)}')
+                        
+                except Exception as e:
+                    logging.error(f"❌ Error processing generate request: {str(e)}")
+                    self.send_error(500, f'Generation failed: {str(e)}')
+            elif self.path == '/api/ollama/test':
+                try:
+                    # Test if ollama command exists
+                    which_result = subprocess.run(['which', 'ollama'], 
+                                               capture_output=True, 
+                                               text=True)
+                    ollama_path = which_result.stdout.strip()
+                    
+                    # Test if ollama service is running
+                    import requests
+                    health_check = requests.get('http://localhost:11434/api/version')
+                    
+                    response_data = {
+                        'ollama_installed': bool(ollama_path),
+                        'ollama_path': ollama_path if ollama_path else None,
+                        'service_running': health_check.status_code == 200,
+                        'version': health_check.json() if health_check.status_code == 200 else None
+                    }
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response_data).encode())
+                    
+                except Exception as e:
+                    logging.error(f"Error testing ollama: {str(e)}")
+                    self.send_error(500, f'Failed to test ollama: {str(e)}')
+                
             else:
                 logging.warning(f"Path not found: {self.path}")
                 self.send_error(404, 'Not found')
@@ -867,108 +1053,94 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                 self.send_error(500, 'Internal Server Error')
 
     def do_POST(self):
-        try:
-            if self.path.startswith('/api/rename/'):
-                # First send the response headers
-                self.send_response(200)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        if self.path == '/api/ollama/generate':
+            try:
+                logging.info("Received generate request")
                 
-                # Read content length and data
                 content_length = int(self.headers.get('Content-Length', 0))
-                content_type = self.headers.get('Content-Type', '')
-                
-                if content_type != 'application/json':
-                    self.send_error(400, 'Content-Type must be application/json')
-                    return
-                
                 post_data = self.rfile.read(content_length)
-                try:
-                    data = json.loads(post_data.decode('utf-8'))
-                except json.JSONDecodeError:
-                    self.send_error(400, 'Invalid JSON data')
+                data = json.loads(post_data.decode('utf-8'))
+                
+                model = data.get('model')
+                prompt = data.get('prompt')
+                client_id = data.get('client_id')
+                
+                logging.info(f"🤖 Generating response with model: {model}")
+                logging.info(f"📝 User prompt: {prompt}")
+                logging.info(f"👤 Client ID: {client_id}")
+                
+                if not model or not prompt:
+                    logging.error("Missing model or prompt in request")
+                    self.send_error(400, 'Missing model or prompt')
                     return
-                
-                if 'newName' not in data:
-                    self.send_error(400, 'Missing newName in request')
-                    return
-                
-                # Get the file path and decode URL-encoded characters
-                file_path = unquote(self.path[11:])  # Remove '/api/rename/'
-                # Remove leading slash if present
-                file_path = file_path.lstrip('/')
-                
-                # Debug logging
-                logging.info(f"Original file_path: {file_path}")
-                logging.info(f"Output directory: {output_dir}")
-                
-                # Normalize paths to handle different path separators
-                output_dir_norm = os.path.normpath(os.path.abspath(output_dir))
-                full_path = os.path.normpath(os.path.abspath(os.path.join(output_dir, file_path)))
-                
-                # More debug logging
-                logging.info(f"Normalized output_dir: {output_dir_norm}")
-                logging.info(f"Full path: {full_path}")
-                
-                # Security check - make sure the path is within output directory
-                is_within_output = full_path.startswith(output_dir_norm + os.sep) or full_path == output_dir_norm
-                logging.info(f"Is within output directory: {is_within_output}")
-                
-                if not is_within_output:
-                    logging.error(f"❌ Attempted to access file outside output directory:")
-                    logging.error(f"File path: {full_path}")
-                    logging.error(f"Output directory: {output_dir_norm}")
-                    self.send_error(403, 'Access denied')
-                    return
-
-                new_name = data['newName']
-                # Ensure new name doesn't contain path separators
-                if os.path.sep in new_name or (os.path.altsep and os.path.altsep in new_name):
-                    self.send_error(400, 'Invalid filename')
-                    return
-                
-                # Create new path in same directory as original file
-                new_path = os.path.join(os.path.dirname(full_path), new_name)
-                logging.info(f"New path will be: {new_path}")
                 
                 try:
-                    if os.path.exists(full_path):
-                        # Delete old thumbnail if it exists
-                        old_mtime = os.path.getmtime(full_path)
-                        old_hash = hashlib.md5(f"{full_path}{old_mtime}".encode('utf-8')).hexdigest()
-                        old_thumb = os.path.join(THUMBNAIL_CACHE_DIR, f"{old_hash}.jpg")
-                        if os.path.exists(old_thumb):
-                            os.remove(old_thumb)
-
-                        # Check if target file already exists
-                        if os.path.exists(new_path):
-                            self.send_error(409, 'File with that name already exists')
-                            return
-
-                        # Rename the file
-                        os.rename(full_path, new_path)
-                        logging.info(f"✅ Successfully renamed: {file_path} to {new_name}")
-                        
-                        # Generate new thumbnail
-                        generate_thumbnail(new_path)
-                        
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({'success': True}).encode())
-                    else:
-                        logging.warning(f"⚠️ File not found: {file_path}")
-                        self.send_error(404, 'File not found')
+                    # Create Ollama client
+                    client = Client(host='http://localhost:11434')
+                    
+                    # Get or create conversation history for this client
+                    if client_id not in conversation_histories:
+                        conversation_histories[client_id] = []
+                    
+                    # Add user message to history
+                    conversation_histories[client_id].append({
+                        'role': 'user',
+                        'content': prompt
+                    })
+                    
+                    # Generate response with context
+                    logging.info("Sending request to Ollama with context...")
+                    
+                    # Use generate instead of chat for models that don't support chat
+                    try:
+                        # First try chat API
+                        response = client.chat(
+                            model=model,
+                            messages=conversation_histories[client_id],
+                            stream=False
+                        )
+                        response_content = response['message']['content']
+                    except Exception as chat_error:
+                        logging.info(f"Chat API failed, falling back to generate: {chat_error}")
+                        # Fallback to generate API
+                        response = client.generate(
+                            model=model,
+                            prompt=prompt,
+                            stream=False
+                        )
+                        response_content = response['response']
+                    
+                    # Add assistant response to history
+                    conversation_histories[client_id].append({
+                        'role': 'assistant',
+                        'content': response_content
+                    })
+                    
+                    logging.info("✅ Response received from Ollama")
+                    
+                    response_data = {
+                        'response': response_content
+                    }
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response_data).encode())
+                    
+                    logging.info(f"📤 Sent response to client")
+                    
                 except Exception as e:
-                    logging.error(f"❌ Error renaming file: {e}")
-                    self.send_error(500, f'Failed to rename file: {str(e)}')
-                return
-
-            self.send_error(404, 'Not found')
-            
-        except Exception as e:
-            logging.error(f"❌ Error handling POST request: {str(e)}")
-            self.send_error(500, 'Internal Server Error')
+                    logging.error(f"❌ Error communicating with Ollama: {str(e)}")
+                    logging.error(f"Exception type: {type(e)}")
+                    logging.error(f"Exception traceback: {traceback.format_exc()}")
+                    self.send_error(500, f'Ollama error: {str(e)}')
+                    
+            except Exception as e:
+                logging.error(f"❌ Error processing generate request: {str(e)}")
+                self.send_error(500, f'Generation failed: {str(e)}')
+        else:
+            self.send_error(404, "Not found")
 
     def restart_server(self):
         """Restart the server by executing the script again"""
