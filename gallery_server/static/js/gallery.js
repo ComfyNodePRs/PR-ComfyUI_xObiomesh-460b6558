@@ -1385,3 +1385,114 @@ function openConsoleWindow() {
     // Close the document after writing
     consoleWindow.document.close();
 }
+
+// Add these folder browsing functions
+async function browsePath(path) {
+    const currentPathElement = document.getElementById('currentPath');
+    const folderList = document.querySelector('.folder-list');
+    const selectButton = document.getElementById('selectFolderButton');
+    const showAllFiles = document.getElementById('showAllFiles').checked;
+    
+    try {
+        // Show loading state
+        folderList.innerHTML = '<div class="loading">Loading...</div>';
+        
+        const response = await fetch('/api/browse-folders', {
+            headers: {
+                'X-Current-Path': path || '',
+                'X-Show-All': showAllFiles.toString()
+            }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load folders');
+        
+        const data = await response.json();
+        currentPathElement.textContent = data.current_path;
+        
+        // Clear and populate folder list
+        folderList.innerHTML = '';
+        
+        data.items.forEach(item => {
+            const itemElement = document.createElement('div');
+            itemElement.className = `folder-item${item.is_file ? ' file' : ''}`;
+            
+            // Determine icon based on item type
+            let icon = item.is_file ? '📄' : (item.name === '..' ? '⬆️' : '📁');
+            
+            itemElement.innerHTML = `
+                <span class="item-icon">${icon}</span>
+                <span class="item-name">${item.name}</span>
+                ${item.has_json ? '<span class="item-badge">JSON</span>' : ''}
+            `;
+            
+            itemElement.addEventListener('click', () => {
+                if (item.is_file) {
+                    if (item.is_json) {
+                        selectWorkflowFile(item.path);
+                    }
+                } else {
+                    browsePath(item.path);
+                }
+            });
+            
+            folderList.appendChild(itemElement);
+        });
+        
+        // Enable/disable select button based on JSON files presence
+        const hasJsonFiles = data.items.some(item => item.has_json);
+        selectButton.disabled = !hasJsonFiles;
+        
+    } catch (error) {
+        console.error('Error browsing folders:', error);
+        folderList.innerHTML = '<div class="error">Failed to load folder contents</div>';
+        selectButton.disabled = true;
+    }
+}
+
+function selectWorkflowFile(path) {
+    // Update workflow folder select
+    const folderSelect = document.getElementById('workflowFolder');
+    const folderPath = path.substring(0, path.lastIndexOf('/'));
+    
+    // Find or add the folder option
+    let option = Array.from(folderSelect.options).find(opt => opt.value === folderPath);
+    if (!option) {
+        option = new Option(folderPath, folderPath);
+        folderSelect.add(option);
+    }
+    
+    // Select the folder
+    folderSelect.value = folderPath;
+    
+    // Load workflows from this folder
+    loadWorkflowsFromFolder(folderPath);
+    
+    // Close the browser
+    closeFolderBrowser();
+}
+
+function selectCurrentFolder() {
+    const currentPath = document.getElementById('currentPath').textContent;
+    const folderSelect = document.getElementById('workflowFolder');
+    
+    // Find or add the folder option
+    let option = Array.from(folderSelect.options).find(opt => opt.value === currentPath);
+    if (!option) {
+        option = new Option(currentPath, currentPath);
+        folderSelect.add(option);
+    }
+    
+    // Select the folder
+    folderSelect.value = currentPath;
+    
+    // Load workflows from this folder
+    loadWorkflowsFromFolder(currentPath);
+    
+    // Close the browser
+    closeFolderBrowser();
+}
+
+function refreshBrowser() {
+    const currentPath = document.getElementById('currentPath').textContent;
+    browsePath(currentPath);
+}
