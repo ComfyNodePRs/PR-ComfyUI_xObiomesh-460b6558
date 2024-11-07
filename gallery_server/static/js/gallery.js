@@ -1094,48 +1094,67 @@ async function deleteSelected() {
     deleteButton.innerHTML = `<span class="button-icon">⌛</span>Deleting...`;
     deleteButton.disabled = true;
 
+    const failedDeletes = [];
+    const successfulDeletes = [];
+    
     try {
-        const failedDeletes = [];
-        
+        // Process deletions
         for (const path of selectedItems) {
             try {
+                console.log(`Attempting to delete: ${path}`);
                 const response = await fetch(`/api/${apiEndpoint}/${encodeURIComponent(path)}`, {
                     method: 'DELETE'
                 });
                 
-                if (!response.ok) {
+                if (response.ok) {
+                    console.log(`Successfully deleted: ${path}`);
+                    successfulDeletes.push(path);
+                } else {
+                    console.warn(`Failed to delete ${path}, status: ${response.status}`);
                     failedDeletes.push(path);
                 }
-            } catch (error) {
-                console.error(`Error deleting ${path}:`, error);
+            } catch (fetchError) {
+                console.error(`Network error deleting ${path}:`, fetchError);
                 failedDeletes.push(path);
             }
         }
 
-        if (failedDeletes.length > 0) {
+        // Show results
+        if (successfulDeletes.length > 0) {
+            if (failedDeletes.length > 0) {
+                showToast(`Successfully deleted ${successfulDeletes.length} items, ${failedDeletes.length} failed`);
+            } else {
+                showToast(`Successfully deleted ${successfulDeletes.length} items`);
+            }
+        } else if (failedDeletes.length > 0) {
             showToast(`Failed to delete ${failedDeletes.length} items`);
-        } else {
-            showToast(`Successfully deleted ${selectedItems.size} items`);
         }
 
-        // Refresh the current view
+    } catch (error) {
+        console.error('Unexpected error during deletion process:', error);
+        showToast('Unexpected error during deletion');
+        return;
+    }
+
+    try {
+        // Refresh the view
         if (currentView === 'image') {
             await loadImages(true);
         } else {
             await loadTextFiles(true);
         }
-
-        // Clear selection
-        selectedItems.clear();
-        updateSelectionUI();
-
-    } catch (error) {
-        console.error('Error during deletion:', error);
-        showToast('Error during deletion');
-    } finally {
-        deleteButton.innerHTML = originalText;
-        deleteButton.disabled = false;
+    } catch (refreshError) {
+        console.error('Error refreshing view:', refreshError);
+        // Don't show another toast here as the deletion was successful
     }
+
+    // Clear selection
+    selectedItems.clear();
+    updateSelectionUI();
+
+    // Reset button state
+    deleteButton.innerHTML = originalText;
+    deleteButton.disabled = false;
 }
 
 // Update the folder browser functions
