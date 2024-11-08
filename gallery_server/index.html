@@ -26,6 +26,10 @@
                     <span class="button-icon">🤖</span>
                     LLM Chat
                 </button>
+                <button class="panel-button toggle-button" onclick="toggleView('workflow')" id="workflowViewBtn">
+                    <span class="button-icon">⚙️</span>
+                    Workflow
+                </button>
             </div>
             
             <div class="panel-separator"></div>
@@ -396,6 +400,38 @@
                     Select This Folder
                 </button>
             </div>
+        </div>
+    </div>
+
+    <div id="workflowView" class="gallery-container">
+        <div class="title-container">
+            <h1 class="title-text">
+                <span class="title-emoji">⚙️</span>
+                Workflow Parameters
+                <span class="title-emoji">⚙️</span>
+            </h1>
+        </div>
+        
+        <div class="workflow-controls">
+            <div class="controls-container">
+                <div class="workflow-header">
+                    <h2>Current Workflow: <span id="currentWorkflowName">None selected</span></h2>
+                    <div class="workflow-actions">
+                        <button class="workflow-button" onclick="openWorkflowModal()">
+                            <span class="button-icon">📋</span>
+                            Select Workflow
+                        </button>
+                        <button class="workflow-button run-workflow" onclick="runSelectedWorkflow()" disabled>
+                            <span class="button-icon">▶️</span>
+                            Run Workflow
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="workflowParameters" class="workflow-parameters">
+            <div class="placeholder-message">Select a workflow to customize parameters</div>
         </div>
     </div>
 

@@ -21,6 +21,8 @@ let selectedWorkflowPath = null;
 let selectedModel = null;
 let isGenerating = false;
 let clientId = null;
+let selectedWorkflowData = null;
+let workflowParameters = new Map();
 
 const sortFunctions = {
     'date-desc': (a, b) => new Date(b.date) - new Date(a.date),
@@ -103,22 +105,32 @@ function toggleView(viewType) {
     const imageGalleryView = document.getElementById('imageGalleryView');
     const textGalleryView = document.getElementById('textGalleryView');
     const llmChatView = document.getElementById('llmChatView');
+    const workflowView = document.getElementById('workflowView');
     const imageBtn = document.getElementById('imageViewBtn');
     const textBtn = document.getElementById('textViewBtn');
     const llmBtn = document.getElementById('llmViewBtn');
+    const workflowBtn = document.getElementById('workflowViewBtn');
     
     // Hide all views
     imageGalleryView.classList.remove('active');
     textGalleryView.classList.remove('active');
     llmChatView.classList.remove('active');
+    workflowView.classList.remove('active');
     
     // Remove active class from all buttons
     imageBtn.classList.remove('active');
     textBtn.classList.remove('active');
     llmBtn.classList.remove('active');
+    workflowBtn.classList.remove('active');
     
     // Show selected view and activate button
-    if (viewType === 'image') {
+    if (viewType === 'workflow') {
+        workflowView.classList.add('active');
+        workflowBtn.classList.add('active');
+        if (selectedWorkflowPath) {
+            loadWorkflowParameters(selectedWorkflowPath);
+        }
+    } else if (viewType === 'image') {
         imageGalleryView.classList.add('active');
         imageBtn.classList.add('active');
         // Only load images if we haven't loaded them yet
@@ -612,15 +624,20 @@ async function loadWorkflowsFromFolder(folderPath) {
     list.innerHTML = '<div class="loading">Loading workflows...</div>';
     
     try {
+        // Normalize path separators
+        const normalizedPath = folderPath.replace(/\\/g, '/').replace(/^\/+/, '');
+        console.log('Loading workflows from:', normalizedPath);
+        
         const response = await fetch('/api/workflows', {
             headers: {
-                'X-Workflow-Folder': folderPath
+                'X-Workflow-Folder': normalizedPath
             }
         });
         
         if (!response.ok) throw new Error('Failed to fetch workflows');
         
         const workflows = await response.json();
+        console.log('Received workflows:', workflows);
         list.innerHTML = '';
         
         if (workflows.length === 0) {
@@ -629,6 +646,9 @@ async function loadWorkflowsFromFolder(folderPath) {
         }
         
         workflows.forEach(workflow => {
+            // Normalize workflow path
+            workflow.path = workflow.path.replace(/\\/g, '/').replace(/^\/+/, '');
+            
             const item = document.createElement('div');
             item.className = 'workflow-item';
             if (workflow.path === selectedWorkflowPath) {
@@ -644,8 +664,20 @@ async function loadWorkflowsFromFolder(folderPath) {
                 document.querySelectorAll('.workflow-item').forEach(i => i.classList.remove('selected'));
                 item.classList.add('selected');
                 selectedWorkflowPath = workflow.path;
-                document.getElementById('selectedWorkflowName').textContent = workflow.name;
-                document.querySelector('.run-workflow').disabled = false;
+                
+                // Update workflow name displays
+                const workflowName = workflow.name;
+                document.getElementById('selectedWorkflowName').textContent = workflowName;
+                document.getElementById('currentWorkflowName').textContent = workflowName;
+                
+                // Enable run buttons
+                document.querySelectorAll('.run-workflow').forEach(btn => btn.disabled = false);
+                
+                // Load parameters if in workflow view
+                if (document.getElementById('workflowView').classList.contains('active')) {
+                    loadWorkflowParameters(workflow.path);
+                }
+                
                 closeWorkflowModal();
             });
             
@@ -666,30 +698,90 @@ async function runSelectedWorkflow() {
     
     const runButton = document.querySelector('.run-workflow');
     const originalText = runButton.innerHTML;
-    runButton.innerHTML = '<span class="button-icon"></span>Running...';
+    runButton.innerHTML = '<span class="button-icon">⌛</span>Running...';
     runButton.disabled = true;
     
     try {
-        const response = await fetch(`/api/run-workflow/${encodeURIComponent(selectedWorkflowPath)}`);
-        const result = await response.json();
+        // Convert parameters map to object
+        const parameters = {};
+        workflowParameters.forEach((value, nodeId) => {
+            parameters[nodeId] = {
+                widgets_values: value.widgets_values
+            };
+        });
         
-        if (result.success) {
-            showToast('Workflow started successfully');
+        // If no parameters have been modified, use the original values
+        if (Object.keys(parameters).length === 0 && selectedWorkflowData) {
+            Object.entries(selectedWorkflowData).forEach(([nodeId, nodeData]) => {
+                if (nodeData.widgets_values) {
+                    parameters[nodeId] = {
+                        widgets_values: nodeData.widgets_values
+                    };
+                }
+            });
+        }
+        
+        console.log('Sending parameters:', parameters);
+        
+        const response = await fetch(`/api/run-workflow/${encodeURIComponent(selectedWorkflowPath)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ parameters })
+        });
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            const result = await response.json();
+            console.log('Workflow execution result:', result);
+            
+            if (result.success) {
+                showToast('Workflow started successfully');
+            } else {
+                throw new Error(result.error || 'Failed to run workflow');
+            }
         } else {
-            showToast('Failed to run workflow');
-            console.error('Workflow error:', result.error);
+            const text = await response.text();
+            throw new Error(`Server returned non-JSON response: ${text}`);
         }
     } catch (error) {
         console.error('Error running workflow:', error);
-        showToast('Error running workflow');
+        showToast('Error running workflow: ' + error.message);
     } finally {
-        runButton.disabled = false;
         runButton.innerHTML = originalText;
+        runButton.disabled = false;
     }
 }
 
 function closeWorkflowModal() {
     document.getElementById('workflowModal').style.display = 'none';
+    
+    // Load parameters if a workflow is selected and we're in workflow view
+    if (selectedWorkflowPath && document.getElementById('workflowView').classList.contains('active')) {
+        loadWorkflowParameters(selectedWorkflowPath);
+    }
+}
+
+// Add this function to handle workflow selection
+function selectWorkflow(workflow) {
+    selectedWorkflowPath = workflow.path;
+    
+    // Update workflow name displays
+    const workflowName = workflow.name;
+    document.getElementById('selectedWorkflowName').textContent = workflowName;
+    document.getElementById('currentWorkflowName').textContent = workflowName;
+    
+    // Enable run buttons
+    document.querySelectorAll('.run-workflow').forEach(btn => btn.disabled = false);
+    
+    // Load parameters if in workflow view
+    if (document.getElementById('workflowView').classList.contains('active')) {
+        loadWorkflowParameters(workflow.path);
+    }
+    
+    closeWorkflowModal();
 }
 
 // Add this function to show toast messages
@@ -1942,5 +2034,124 @@ function focusChatInput() {
     const chatInput = document.getElementById('chatInput');
     if (chatInput && !chatInput.disabled && document.getElementById('llmChatView').classList.contains('active')) {
         chatInput.focus();
+    }
+}
+
+// Add function to load and parse workflow parameters
+async function loadWorkflowParameters(workflowPath) {
+    try {
+        console.log('Loading workflow parameters for:', workflowPath);
+        // Normalize path separators to forward slashes and remove any leading slashes
+        const normalizedPath = workflowPath.replace(/\\/g, '/').replace(/^\/+/, '');
+        console.log('Normalized path:', normalizedPath);
+        
+        const response = await fetch(`/api/workflow-parameters/${encodeURIComponent(normalizedPath)}`);
+        if (!response.ok) {
+            console.error('Server response:', response.status, response.statusText);
+            throw new Error('Failed to load workflow parameters');
+        }
+        
+        selectedWorkflowData = await response.json();
+        console.log('Loaded workflow data:', selectedWorkflowData);
+        
+        // Update the workflow name display
+        const workflowName = workflowPath.split(/[/\\]/).pop();
+        document.getElementById('currentWorkflowName').textContent = workflowName;
+        
+        displayWorkflowParameters();
+        
+    } catch (error) {
+        console.error('Error loading workflow parameters:', error);
+        showToast('Failed to load workflow parameters');
+    }
+}
+
+// Add function to display workflow parameters
+function displayWorkflowParameters() {
+    const parametersContainer = document.getElementById('workflowParameters');
+    if (!selectedWorkflowData || !parametersContainer) {
+        console.error('Missing workflow data or container');
+        return;
+    }
+    
+    console.log('Displaying parameters for workflow data:', selectedWorkflowData);
+    parametersContainer.innerHTML = '';
+    
+    // Create parameter inputs for each node
+    Object.entries(selectedWorkflowData).forEach(([nodeId, nodeData]) => {
+        console.log(`Processing node ${nodeId}:`, nodeData);
+        
+        // Check for widgets_values in the node
+        if (nodeData.widgets_values) {
+            const nodeContainer = document.createElement('div');
+            nodeContainer.className = 'workflow-node';
+            
+            const nodeTitle = document.createElement('h3');
+            nodeTitle.textContent = `Node ${nodeId}: ${nodeData.title || 'Unnamed Node'}`;
+            nodeContainer.appendChild(nodeTitle);
+            
+            // Create inputs for each widget value
+            nodeData.widgets_values.forEach((value, index) => {
+                const widgetContainer = document.createElement('div');
+                widgetContainer.className = 'workflow-widget';
+                
+                const label = document.createElement('label');
+                label.textContent = `Parameter ${index + 1}`;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'workflow-input';
+                input.value = value;
+                input.dataset.nodeId = nodeId;
+                input.dataset.widgetIndex = index;
+                
+                // Add change listener
+                input.addEventListener('change', () => {
+                    if (!workflowParameters.has(nodeId)) {
+                        workflowParameters.set(nodeId, {
+                            widgets_values: [...nodeData.widgets_values]
+                        });
+                    }
+                    workflowParameters.get(nodeId).widgets_values[index] = input.value;
+                    console.log('Updated parameter:', nodeId, index, input.value);
+                });
+                
+                widgetContainer.appendChild(label);
+                widgetContainer.appendChild(input);
+                nodeContainer.appendChild(widgetContainer);
+            });
+            
+            parametersContainer.appendChild(nodeContainer);
+        }
+    });
+    
+    // Enable the run button if parameters are loaded
+    const runButton = document.querySelector('.run-workflow');
+    if (runButton) {
+        runButton.disabled = false;
+    }
+}
+
+// Add this function near the other modal-related functions
+function closeNewImagesModal() {
+    const modal = document.getElementById('newImagesModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Add this function
+function closeDeleteDialog() {
+    const dialog = document.getElementById('deleteDialog');
+    if (dialog) {
+        dialog.style.display = 'none';
+    }
+}
+
+// Add this function
+function closeRenameDialog() {
+    const dialog = document.getElementById('renameDialog');
+    if (dialog) {
+        dialog.style.display = 'none';
     }
 }

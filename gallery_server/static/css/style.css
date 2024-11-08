@@ -2107,3 +2107,126 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255, 85, 85, 0.3);
 }
+
+/* Add these styles for the workflow view */
+.workflow-controls {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 20px auto;
+    padding: 15px 20px;
+    background: linear-gradient(180deg, rgba(45, 10, 63, 0.95), rgba(26, 5, 34, 0.95));
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 121, 198, 0.2);
+}
+
+.workflow-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.workflow-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.workflow-button {
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #50fa7b;
+    color: #50fa7b;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.workflow-button:hover:not(:disabled) {
+    background: rgba(80, 250, 123, 0.2);
+    transform: translateY(-2px);
+}
+
+.workflow-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.workflow-parameters {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.workflow-node {
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #6272a4;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.workflow-node h3 {
+    color: #50fa7b;
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(80, 250, 123, 0.2);
+}
+
+.workflow-widget {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.workflow-widget label {
+    min-width: 150px;
+    color: #f8f8f2;
+}
+
+.workflow-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    background: rgba(40, 42, 54, 0.8);
+    border: 2px solid #6272a4;
+    border-radius: 5px;
+    color: #f8f8f2;
+    font-size: 0.9em;
+    transition: all 0.3s ease;
+}
+
+.workflow-input:focus {
+    outline: none;
+    border-color: #50fa7b;
+    box-shadow: 0 0 15px rgba(80, 250, 123, 0.2);
+}
+
+.workflow-input[type="checkbox"] {
+    min-width: auto;
+    width: 20px;
+    height: 20px;
+}
+
+.workflow-input[type="number"] {
+    width: 100px;
+}
+
+select.workflow-input {
+    cursor: pointer;
+}
+
+select.workflow-input option {
+    background: #282a36;
+    color: #f8f8f2;
+    padding: 8px;
+}

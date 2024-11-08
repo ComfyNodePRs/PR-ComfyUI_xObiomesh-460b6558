@@ -574,76 +574,167 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                     self.send_error(500, 'Internal Server Error')
             elif self.path.startswith('/api/run-workflow/'):
                 try:
-                    # Get just the filename from the path and decode it
-                    workflow_filename = unquote(self.path[16:])  # Remove '/api/run-workflow/'
+                    workflow_path = unquote(self.path[16:])
+                    # Try different possible workflow locations
+                    possible_paths = [
+                        os.path.join(comfy_dir, workflow_path),
+                        os.path.join(comfy_dir, 'workflows', os.path.basename(workflow_path)),
+                        os.path.join(comfy_dir, 'user', 'default', 'workflows', os.path.basename(workflow_path)),
+                        os.path.join(comfy_dir, '.users', 'default', 'workflows', os.path.basename(workflow_path))
+                    ]
                     
-                    # Find the workflows directory
-                    workflows_dir = os.path.normpath(os.path.join(comfy_dir, 'user', 'default', 'workflows'))
-                    if not os.path.exists(workflows_dir):
-                        workflows_dir = os.path.normpath(os.path.join(comfy_dir, '.users', 'default', 'workflows'))
+                    full_path = None
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            full_path = path
+                            break
                     
-                    if not os.path.exists(workflows_dir):
-                        logging.error(f"Workflows directory not found")
-                        self.send_error(404, 'Workflows directory not found')
-                        return
-                        
-                    # Build the full path correctly
-                    full_path = os.path.join(workflows_dir, os.path.basename(workflow_filename))
-                    full_path = os.path.normpath(full_path)
-                    
-                    logging.info(f"Attempting to run workflow: {full_path}")
-                    
-                    if not os.path.exists(full_path):
-                        logging.error(f"Workflow file not found: {full_path}")
+                    if not full_path:
+                        logging.error(f"Workflow file not found in any location. Tried: {possible_paths}")
                         self.send_error(404, 'Workflow file not found')
                         return
                     
-                    # Read the workflow file with proper encoding
+                    logging.info(f"Found workflow at: {full_path}")
+                    
+                    # Get request body for parameters
+                    content_length = int(self.headers.get('Content-Length', 0))
+                    post_data = self.rfile.read(content_length)
+                    parameters = json.loads(post_data.decode('utf-8')).get('parameters', {})
+                    
+                    logging.info(f"Received parameters: {parameters}")
+                    
+                    # Read workflow
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        workflow_data = json.load(f)
+                    
+                    # Update workflow with provided parameters
+                    if 'nodes' in workflow_data:
+                        for node in workflow_data['nodes']:
+                            node_id = str(node.get('id'))
+                            if node_id in parameters:
+                                # Ensure widgets_values is a list
+                                if isinstance(parameters[node_id]['widgets_values'], list):
+                                    node['widgets_values'] = parameters[node_id]['widgets_values']
+                                else:
+                                    # Convert to list if it's not already
+                                    node['widgets_values'] = [parameters[node_id]['widgets_values']]
+                                logging.info(f"Updated node {node_id} with values: {node['widgets_values']}")
+                    
+                    # Format the prompt data dynamically based on workflow structure
+                    prompt_data = {
+                        "prompt": {},
+                        "client_id": "gallery_server",
+                        "extra_data": {
+                            "extra_pnginfo": {
+                                "workflow": workflow_data
+                            }
+                        }
+                    }
+
+                    # Build the prompt structure from the workflow nodes
+                    if 'nodes' in workflow_data:
+                        for node in workflow_data['nodes']:
+                            node_id = str(node.get('id'))
+                            node_data = {
+                                "class_type": node.get('type'),
+                                "inputs": {}
+                            }
+                            
+                            # Add inputs from workflow connections
+                            if 'inputs' in node:
+                                for input_name, input_data in node['inputs'].items():
+                                    if isinstance(input_data, dict) and 'link' in input_data:
+                                        # This is a connected input
+                                        continue
+                                    else:
+                                        # This is a direct input value
+                                        node_data['inputs'][input_name] = input_data
+
+                            # Add widget values if present
+                            if 'widgets_values' in node:
+                                node_data['widgets_values'] = node['widgets_values']
+
+                            prompt_data['prompt'][node_id] = node_data
+
+                    # Process connections between nodes
+                    for node in workflow_data['nodes']:
+                        node_id = str(node.get('id'))
+                        if 'inputs' in node:
+                            for input_name, input_data in node['inputs'].items():
+                                if isinstance(input_data, dict) and 'link' in input_data:
+                                    # Find the source node and output
+                                    for link in workflow_data.get('links', []):
+                                        if link[0] == input_data['link']:  # If link ID matches
+                                            from_node = str(link[1])
+                                            from_output = link[3]
+                                            # Add the connection to inputs
+                                            prompt_data['prompt'][node_id]['inputs'][input_name] = {
+                                                'node': from_node,
+                                                'output': from_output
+                                            }
+                                            break
+
+                    logging.info("Sending workflow to ComfyUI...")
+                    logging.info(f"Prompt data: {json.dumps(prompt_data, indent=2)}")
+                    
+                    # Send modified workflow to ComfyUI
+                    api_url = "http://127.0.0.1:8189/prompt"
+                    headers = {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                    
                     try:
-                        # Try UTF-8 first
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            workflow_data = json.load(f)
-                    except UnicodeDecodeError:
-                        # If UTF-8 fails, try with utf-8-sig (for files with BOM)
-                        with open(full_path, 'r', encoding='utf-8-sig') as f:
-                            workflow_data = json.load(f)
-                    
-                    # Send the workflow to the ComfyUI API
-                    # I changed the port to 8189 because 8188 was already in use by another instance of ComfyUI
-                    api_url = "http://127.0.0.1:8189/prompt"  
-                    
-                    logging.info(f"Sending workflow to ComfyUI API at {api_url}")
-                    
-                    response = requests.post(api_url, json={
-                        "prompt": workflow_data
-                    })
-                    
-                    if response.status_code == 200:
-                        logging.info("Workflow sent successfully")
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.send_header('Access-Control-Allow-Origin', '*')
-                        self.end_headers()
+                        response = requests.post(api_url, json=prompt_data, headers=headers)
+                        logging.info(f"ComfyUI response status: {response.status_code}")
+                        logging.info(f"ComfyUI response headers: {response.headers}")
+                        logging.info(f"ComfyUI response text: {response.text}")
                         
-                        self.wfile.write(json.dumps({
-                            'success': True,
-                            'message': 'Workflow started successfully'
-                        }).encode())
-                    else:
-                        logging.error(f"Failed to send workflow: {response.text}")
+                        if response.status_code == 200:
+                            response_data = response.json()
+                            logging.info(f"ComfyUI response data: {response_data}")
+                            
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.send_header('Access-Control-Allow-Origin', '*')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({
+                                'success': True,
+                                'message': 'Workflow started successfully',
+                                'prompt_id': response_data.get('prompt_id')
+                            }).encode())
+                        else:
+                            error_msg = f"ComfyUI returned status code {response.status_code}"
+                            try:
+                                error_data = response.json()
+                                error_msg += f": {json.dumps(error_data)}"
+                            except:
+                                error_msg += f": {response.text}"
+                            
+                            logging.error(error_msg)
+                            self.send_response(500)
+                            self.send_header('Content-type', 'application/json')
+                            self.send_header('Access-Control-Allow-Origin', '*')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({
+                                'success': False,
+                                'error': error_msg
+                            }).encode())
+                    except requests.exceptions.RequestException as e:
+                        error_msg = f"Failed to connect to ComfyUI: {str(e)}"
+                        logging.error(error_msg)
                         self.send_response(500)
                         self.send_header('Content-type', 'application/json')
                         self.send_header('Access-Control-Allow-Origin', '*')
                         self.end_headers()
-                        
                         self.wfile.write(json.dumps({
                             'success': False,
-                            'error': f'Failed to send workflow: {response.text}'
+                            'error': error_msg
                         }).encode())
                         
                 except Exception as e:
                     logging.error(f"Error running workflow: {str(e)}")
-                    self.send_error(500, 'Internal Server Error')
+                    self.send_error(500, str(e))
             elif self.path == '/api/restart':
                 try:
                     self.send_response(200)
@@ -929,6 +1020,59 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                     logging.error(f"Error testing ollama: {str(e)}")
                     self.send_error(500, f'Failed to test ollama: {str(e)}')
                 
+            elif self.path.startswith('/api/workflow-parameters/'):
+                try:
+                    workflow_path = unquote(self.path[22:])  # Remove '/api/workflow-parameters/'
+                    # Normalize path separators and handle relative path
+                    workflow_path = workflow_path.replace('/', os.path.sep).replace('\\', os.path.sep)
+                    
+                    # Try different possible workflow locations
+                    possible_paths = [
+                        os.path.join(comfy_dir, workflow_path),
+                        os.path.join(comfy_dir, 'workflows', os.path.basename(workflow_path)),
+                        os.path.join(comfy_dir, 'user', 'default', 'workflows', os.path.basename(workflow_path)),
+                        os.path.join(comfy_dir, '.users', 'default', 'workflows', os.path.basename(workflow_path))
+                    ]
+                    
+                    full_path = None
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            full_path = path
+                            break
+                    
+                    if not full_path:
+                        logging.error(f"Workflow file not found in any location. Tried: {possible_paths}")
+                        self.send_error(404, 'Workflow file not found')
+                        return
+                    
+                    logging.info(f"Found workflow at: {full_path}")
+                    
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        workflow_data = json.load(f)
+                    
+                    # Extract parameters from workflow nodes
+                    parameters = {}
+                    if 'nodes' in workflow_data:
+                        for node in workflow_data['nodes']:
+                            node_id = str(node.get('id'))
+                            if 'widgets_values' in node:
+                                parameters[node_id] = {
+                                    'title': node.get('type', 'Unnamed Node'),
+                                    'widgets_values': node['widgets_values']
+                                }
+                    
+                    logging.info(f"Extracted parameters: {parameters}")
+                    
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.end_headers()
+                    self.wfile.write(json.dumps(parameters).encode())
+                    
+                except Exception as e:
+                    logging.error(f"Error getting workflow parameters: {str(e)}")
+                    self.send_error(500, 'Internal Server Error')
+                
             else:
                 logging.warning(f"Path not found: {self.path}")
                 self.send_error(404, 'Not found')
@@ -1053,94 +1197,172 @@ class GalleryHandler(SimpleHTTPRequestHandler):
                 self.send_error(500, 'Internal Server Error')
 
     def do_POST(self):
-        if self.path == '/api/ollama/generate':
-            try:
-                logging.info("Received generate request")
+        try:
+            if self.path.startswith('/api/run-workflow/'):
+                workflow_path = unquote(self.path[16:])
+                # Try different possible workflow locations
+                possible_paths = [
+                    os.path.join(comfy_dir, workflow_path),
+                    os.path.join(comfy_dir, 'workflows', os.path.basename(workflow_path)),
+                    os.path.join(comfy_dir, 'user', 'default', 'workflows', os.path.basename(workflow_path)),
+                    os.path.join(comfy_dir, '.users', 'default', 'workflows', os.path.basename(workflow_path))
+                ]
                 
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length)
-                data = json.loads(post_data.decode('utf-8'))
+                full_path = None
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        full_path = path
+                        break
                 
-                model = data.get('model')
-                prompt = data.get('prompt')
-                client_id = data.get('client_id')
-                
-                logging.info(f"🤖 Generating response with model: {model}")
-                logging.info(f"📝 User prompt: {prompt}")
-                logging.info(f"👤 Client ID: {client_id}")
-                
-                if not model or not prompt:
-                    logging.error("Missing model or prompt in request")
-                    self.send_error(400, 'Missing model or prompt')
+                if not full_path:
+                    logging.error(f"Workflow file not found in any location. Tried: {possible_paths}")
+                    self.send_error(404, 'Workflow file not found')
                     return
                 
-                try:
-                    # Create Ollama client
-                    client = Client(host='http://localhost:11434')
-                    
-                    # Get or create conversation history for this client
-                    if client_id not in conversation_histories:
-                        conversation_histories[client_id] = []
-                    
-                    # Add user message to history
-                    conversation_histories[client_id].append({
-                        'role': 'user',
-                        'content': prompt
-                    })
-                    
-                    # Generate response with context
-                    logging.info("Sending request to Ollama with context...")
-                    
-                    # Use generate instead of chat for models that don't support chat
-                    try:
-                        # First try chat API
-                        response = client.chat(
-                            model=model,
-                            messages=conversation_histories[client_id],
-                            stream=False
-                        )
-                        response_content = response['message']['content']
-                    except Exception as chat_error:
-                        logging.info(f"Chat API failed, falling back to generate: {chat_error}")
-                        # Fallback to generate API
-                        response = client.generate(
-                            model=model,
-                            prompt=prompt,
-                            stream=False
-                        )
-                        response_content = response['response']
-                    
-                    # Add assistant response to history
-                    conversation_histories[client_id].append({
-                        'role': 'assistant',
-                        'content': response_content
-                    })
-                    
-                    logging.info("✅ Response received from Ollama")
-                    
-                    response_data = {
-                        'response': response_content
+                logging.info(f"Found workflow at: {full_path}")
+                
+                # Get request body for parameters
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = self.rfile.read(content_length)
+                parameters = json.loads(post_data.decode('utf-8')).get('parameters', {})
+                
+                logging.info(f"Received parameters: {parameters}")
+                
+                # Read workflow
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    workflow_data = json.load(f)
+                
+                # Update workflow with provided parameters
+                if 'nodes' in workflow_data:
+                    for node in workflow_data['nodes']:
+                        node_id = str(node.get('id'))
+                        if node_id in parameters:
+                            # Ensure widgets_values is a list
+                            if isinstance(parameters[node_id]['widgets_values'], list):
+                                node['widgets_values'] = parameters[node_id]['widgets_values']
+                            else:
+                                # Convert to list if it's not already
+                                node['widgets_values'] = [parameters[node_id]['widgets_values']]
+                            logging.info(f"Updated node {node_id} with values: {node['widgets_values']}")
+                
+                # Format the prompt data dynamically based on workflow structure
+                prompt_data = {
+                    "prompt": {},
+                    "client_id": "gallery_server",
+                    "extra_data": {
+                        "extra_pnginfo": {
+                            "workflow": workflow_data
+                        }
                     }
+                }
+
+                # Build the prompt structure from the workflow nodes
+                if 'nodes' in workflow_data:
+                    for node in workflow_data['nodes']:
+                        node_id = str(node.get('id'))
+                        node_data = {
+                            "class_type": node.get('type'),
+                            "inputs": {}
+                        }
+                        
+                        # Add inputs from workflow connections
+                        if 'inputs' in node:
+                            for input_name, input_data in node['inputs'].items():
+                                if isinstance(input_data, dict) and 'link' in input_data:
+                                    # This is a connected input
+                                    continue
+                                else:
+                                    # This is a direct input value
+                                    node_data['inputs'][input_name] = input_data
+
+                        # Add widget values if present
+                        if 'widgets_values' in node:
+                            node_data['widgets_values'] = node['widgets_values']
+
+                        prompt_data['prompt'][node_id] = node_data
+
+                # Process connections between nodes
+                for node in workflow_data['nodes']:
+                    node_id = str(node.get('id'))
+                    if 'inputs' in node:
+                        for input_name, input_data in node['inputs'].items():
+                            if isinstance(input_data, dict) and 'link' in input_data:
+                                # Find the source node and output
+                                for link in workflow_data.get('links', []):
+                                    if link[0] == input_data['link']:  # If link ID matches
+                                        from_node = str(link[1])
+                                        from_output = link[3]
+                                        # Add the connection to inputs
+                                        prompt_data['prompt'][node_id]['inputs'][input_name] = {
+                                            'node': from_node,
+                                            'output': from_output
+                                        }
+                                        break
+
+                logging.info("Sending workflow to ComfyUI...")
+                logging.info(f"Prompt data: {json.dumps(prompt_data, indent=2)}")
+                
+                # Send modified workflow to ComfyUI
+                api_url = "http://127.0.0.1:8189/prompt"
+                headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+                
+                try:
+                    response = requests.post(api_url, json=prompt_data, headers=headers)
+                    logging.info(f"ComfyUI response status: {response.status_code}")
+                    logging.info(f"ComfyUI response headers: {response.headers}")
+                    logging.info(f"ComfyUI response text: {response.text}")
                     
-                    self.send_response(200)
+                    if response.status_code == 200:
+                        response_data = response.json()
+                        logging.info(f"ComfyUI response data: {response_data}")
+                        
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({
+                            'success': True,
+                            'message': 'Workflow started successfully',
+                            'prompt_id': response_data.get('prompt_id')
+                        }).encode())
+                    else:
+                        error_msg = f"ComfyUI returned status code {response.status_code}"
+                        try:
+                            error_data = response.json()
+                            error_msg += f": {json.dumps(error_data)}"
+                        except:
+                            error_msg += f": {response.text}"
+                        
+                        logging.error(error_msg)
+                        self.send_response(500)
+                        self.send_header('Content-type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({
+                            'success': False,
+                            'error': error_msg
+                        }).encode())
+                except requests.exceptions.RequestException as e:
+                    error_msg = f"Failed to connect to ComfyUI: {str(e)}"
+                    logging.error(error_msg)
+                    self.send_response(500)
                     self.send_header('Content-type', 'application/json')
                     self.send_header('Access-Control-Allow-Origin', '*')
                     self.end_headers()
-                    self.wfile.write(json.dumps(response_data).encode())
+                    self.wfile.write(json.dumps({
+                        'success': False,
+                        'error': error_msg
+                    }).encode())
                     
-                    logging.info(f"📤 Sent response to client")
-                    
-                except Exception as e:
-                    logging.error(f"❌ Error communicating with Ollama: {str(e)}")
-                    logging.error(f"Exception type: {type(e)}")
-                    logging.error(f"Exception traceback: {traceback.format_exc()}")
-                    self.send_error(500, f'Ollama error: {str(e)}')
-                    
-            except Exception as e:
-                logging.error(f"❌ Error processing generate request: {str(e)}")
-                self.send_error(500, f'Generation failed: {str(e)}')
-        else:
-            self.send_error(404, "Not found")
+            else:
+                self.send_error(404, "Not found")
+            
+        except Exception as e:
+            logging.error(f"Error handling POST request: {str(e)}")
+            self.send_error(500, str(e))
 
     def restart_server(self):
         """Restart the server by executing the script again"""
